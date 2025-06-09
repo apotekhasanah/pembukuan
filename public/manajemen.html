@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pusat Manajemen - Apotek Hasanah Rahayu</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="icon" type="image/png" href="media/icon.png">
+    <link rel="shortcut icon" href="media/favicon.ico">
+</head>
+<body class="antialiased text-gray-800 bg-gray-100">
+
+    <div id="loadingOverlay" class="fixed inset-0 bg-white bg-opacity-95 flex flex-col items-center justify-center z-[9999]">
+        <div class="spinner"></div>
+        <p class="mt-4 text-lg font-semibold text-green-700">Memuat Halaman...</p>
+        <p class="text-sm text-gray-600">Mohon tunggu sebentar.</p>
+    </div>
+
+    <div id="navbar-placeholder">
+        <!-- Navigasi akan dimuat di sini oleh main.js -->
+    </div>
+
+    <div id="mainContent" class="container mx-auto p-4 md:p-8 hidden">
+        <header class="mb-8 text-center">
+            <h1 class="text-3xl md:text-4xl font-bold text-green-700">Pusat Manajemen</h1>
+            <p id="userInfo" class="text-sm text-gray-600 mt-1">Analisis data SDM, Pasien, dan Distributor.</p>
+        </header>
+
+        <div id="messageContainer" class="hidden p-3 rounded-md text-sm mb-4"></div>
+
+        <!-- Tab Navigation -->
+        <div class="mb-6 border-b border-gray-200">
+            <nav class="flex flex-wrap justify-center -mb-px" aria-label="Tabs">
+                <button data-tab-target="sdm" class="tab-button-manajemen whitespace-nowrap py-4 px-4 border-b-2 font-medium text-sm text-green-600 border-green-500">
+                    Manajemen SDM
+                </button>
+                <button data-tab-target="pasien" class="tab-button-manajemen whitespace-nowrap py-4 px-4 border-b-2 font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300 border-transparent">
+                    Database Pasien
+                </button>
+                <button data-tab-target="distributor" class="tab-button-manajemen whitespace-nowrap py-4 px-4 border-b-2 font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300 border-transparent">
+                    Database Distributor
+                </button>
+            </nav>
+        </div>
+
+        <div id="loadingIndicatorManajemen" class="hidden text-center py-8">
+            <svg class="animate-spin h-8 w-8 text-green-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+            <p class="text-gray-600 mt-2">Mengambil dan mengolah data...</p>
+        </div>
+
+        <!-- Tab Content -->
+        <div id="tabContentContainer">
+            <!-- SDM Tab -->
+            <div id="sdmContent" class="tab-content-manajemen">
+                <div class="bg-white p-6 rounded-lg shadow-lg">
+                    <h2 class="text-xl font-semibold mb-4 text-gray-700">Analisis Gaji SDM</h2>
+                    <div id="sdmDropdownContainer" class="relative w-full md:w-2/5 mb-6">
+                        <label for="sdmSearchInput" class="block text-sm font-medium text-gray-700 mb-1">Pilih atau Cari Nama SDM</label>
+                        <div class="relative">
+                            <input type="text" id="sdmSearchInput" placeholder="Pilih atau cari..." class="w-full pl-3 pr-10 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 cursor-pointer">
+                            <button id="sdmDropdownButton" class="absolute inset-y-0 right-0 flex items-center pr-2">
+                                <!-- PERBAIKAN: Ikon diubah menjadi panah chevron -->
+                                <svg class="h-5 w-5 text-gray-400 transition-transform duration-200" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                                </svg>
+                            </button>
+                        </div>
+                        <div id="sdmDropdownList" class="custom-dropdown-list absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm hidden"></div>
+                    </div>
+                    <div id="sdmDetails" class="hidden">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 text-center">
+                            <div class="bg-blue-100 p-4 rounded-lg shadow-sm"><p class="text-sm font-medium text-blue-800">Total Gaji Diterima</p><p id="sdmTotalGaji" class="text-2xl font-bold text-blue-900">Rp 0</p></div>
+                            <div class="bg-indigo-100 p-4 rounded-lg shadow-sm"><p class="text-sm font-medium text-indigo-800">Rata-rata Gaji per Bulan</p><p id="sdmRataGaji" class="text-2xl font-bold text-indigo-900">Rp 0</p></div>
+                        </div>
+                        <h3 class="text-lg font-semibold mb-2 text-gray-600">Riwayat Penggajian</h3>
+                        <div class="table-container border border-gray-200 rounded-md"><table class="min-w-full divide-y divide-gray-200"><thead class="bg-gray-50"><tr><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tanggal</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Deskripsi</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Jumlah</th></tr></thead><tbody id="gajiTableBody" class="bg-white divide-y divide-gray-200"></tbody></table></div>
+                    </div>
+                     <div id="sdmEmptyState" class="text-center py-10 bg-gray-50 rounded-lg hidden"><p class="text-gray-500">Belum ada data gaji yang tercatat. Silakan input biaya dengan kategori "Gaji & Upah".</p></div>
+                </div>
+            </div>
+
+            <!-- Pasien Tab -->
+            <div id="pasienContent" class="tab-content-manajemen hidden">
+                <div class="bg-white p-6 rounded-lg shadow-lg">
+                    <h2 class="text-xl font-semibold mb-4 text-gray-700">Analisis Pembelian Pasien</h2>
+                    <div id="pasienDropdownContainer" class="relative w-full md:w-2/5 mb-6">
+                        <label for="pasienSearchInput" class="block text-sm font-medium text-gray-700 mb-1">Pilih atau Cari Nama Pasien</label>
+                        <div class="relative">
+                           <input type="text" id="pasienSearchInput" placeholder="Pilih atau cari..." class="w-full pl-3 pr-10 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 cursor-pointer">
+                           <button id="pasienDropdownButton" class="absolute inset-y-0 right-0 flex items-center pr-2">
+                               <!-- PERBAIKAN: Ikon diubah menjadi panah chevron -->
+                               <svg class="h-5 w-5 text-gray-400 transition-transform duration-200" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                   <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                               </svg>
+                           </button>
+                        </div>
+                        <div id="pasienDropdownList" class="custom-dropdown-list absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm hidden"></div>
+                    </div>
+                    <div id="pasienDetails" class="hidden">
+                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 text-center">
+                            <div class="bg-green-100 p-4 rounded-lg shadow-sm"><p class="text-sm font-medium text-green-800">Total Belanja</p><p id="pasienTotalBelanja" class="text-2xl font-bold text-green-900">Rp 0</p></div>
+                            <div class="bg-yellow-100 p-4 rounded-lg shadow-sm"><p class="text-sm font-medium text-yellow-800">Produk Paling Sering Dibeli</p><p id="pasienProdukFavorit" class="text-xl font-bold text-yellow-900">-</p></div>
+                        </div>
+                        <h3 class="text-lg font-semibold mb-2 text-gray-600">Riwayat Pembelian Obat</h3>
+                        <div class="table-container border border-gray-200 rounded-md"><table class="min-w-full divide-y divide-gray-200"><thead class="bg-gray-50"><tr><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tanggal Nota</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nama Obat</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kuantitas</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Harga Satuan</th></tr></thead><tbody id="pasienTableBody" class="bg-white divide-y divide-gray-200"></tbody></table></div>
+                    </div>
+                    <div id="pasienEmptyState" class="text-center py-10 bg-gray-50 rounded-lg hidden"><p class="text-gray-500">Belum ada data penjualan dengan nama pasien. Silakan isi nama pasien pada halaman kasir.</p></div>
+                </div>
+            </div>
+
+            <!-- Distributor Tab -->
+            <div id="distributorContent" class="tab-content-manajemen hidden">
+                <div class="bg-white p-6 rounded-lg shadow-lg">
+                    <h2 class="text-xl font-semibold mb-4 text-gray-700">Analisis Produk per Distributor</h2>
+                    <div id="distributorDropdownContainer" class="relative w-full md:w-2/5 mb-6">
+                        <label for="distributorSearchInput" class="block text-sm font-medium text-gray-700 mb-1">Pilih atau Cari Nama Distributor</label>
+                        <div class="relative">
+                            <input type="text" id="distributorSearchInput" placeholder="Pilih atau cari..." class="w-full pl-3 pr-10 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 cursor-pointer">
+                            <button id="distributorDropdownButton" class="absolute inset-y-0 right-0 flex items-center pr-2">
+                                <!-- PERBAIKAN: Ikon diubah menjadi panah chevron -->
+                                <svg class="h-5 w-5 text-gray-400 transition-transform duration-200" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                                </svg>
+                           </button>
+                        </div>
+                        <div id="distributorDropdownList" class="custom-dropdown-list absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm hidden"></div>
+                    </div>
+                     <div id="distributorDetails" class="hidden">
+                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 text-center">
+                            <div class="bg-purple-100 p-4 rounded-lg shadow-sm"><p class="text-sm font-medium text-purple-800">Jumlah Jenis Produk</p><p id="distributorTotalProduk" class="text-2xl font-bold text-purple-900">0</p></div>
+                            <div class="bg-red-100 p-4 rounded-lg shadow-sm"><p class="text-sm font-medium text-red-800">Total Nilai Stok (Harga Beli)</p><p id="distributorNilaiStok" class="text-2xl font-bold text-red-900">Rp 0</p></div>
+                        </div>
+                        <h3 class="text-lg font-semibold mb-2 text-gray-600">Daftar Produk dari Distributor</h3>
+                        <div class="table-container border border-gray-200 rounded-md"><table class="min-w-full divide-y divide-gray-200"><thead class="bg-gray-50"><tr><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nama Obat</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kategori</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stok</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Harga Beli</th></tr></thead><tbody id="distributorTableBody" class="bg-white divide-y divide-gray-200"></tbody></table></div>
+                    </div>
+                    <div id="distributorEmptyState" class="text-center py-10 bg-gray-50 rounded-lg hidden"><p class="text-gray-500">Belum ada data inventaris dengan nama distributor. Silakan isi data distributor pada halaman Status Inventaris.</p></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="accessDeniedMessage" class="container mx-auto p-4 md:p-8 text-center hidden">
+        <h2 class="text-2xl font-semibold text-red-600">Akses Ditolak</h2>
+        <p class="text-gray-700 mt-2">Anda tidak memiliki izin untuk mengakses halaman ini. Silakan login dengan akun admin.</p>
+        <a href="index.html" class="mt-4 inline-block bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded">Kembali ke Halaman Utama</a>
+    </div>
+
+    <script type="module" src="js/main.js"></script>
+    <script type="module" src="js/auth.js"></script>
+    <script type="module" src="js/firestore_utils.js"></script>
+    <script type="module" src="js/manajemen.js"></script>
+    <script type="module" src="js/loading.js"></script>
+</body>
+</html>

@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Login - Apotek Hasanah Rahayu</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="icon" type="image/png" href="media/icon.png"> <!-- For modern browsers -->
+    <link rel="shortcut icon" href="media/favicon.ico"> <!-- For older browsers -->
+</head>
+<body class="antialiased text-gray-800 bg-gray-100">
+
+    <!-- Halaman Pemuatan Awal -->
+    <div id="loadingOverlay">
+        <div class="spinner"></div>
+        <p class="mt-4 text-lg font-semibold text-green-700">Memuat Halaman Login...</p>
+        <p class="text-sm text-gray-600">Mohon tunggu sebentar.</p>
+    </div>
+
+    <!-- Login Section -->
+    <div id="authSection" class="container mx-auto p-4 md:p-8 flex items-center justify-center min-h-screen">
+        <div class="bg-white p-8 rounded-lg shadow-xl w-full max-w-md">
+            <div class="text-center mb-6">
+                <h1 class="text-3xl font-bold text-green-700">Apotek Hasanah Rahayu</h1>
+                <p class="text-gray-600">Silakan login untuk melanjutkan.</p>
+            </div>
+            <div id="loginFormContainer">
+                <h2 class="text-2xl font-bold text-center text-green-700 mb-6">Login Akun</h2>
+                <form id="loginForm" class="space-y-4">
+                    <div>
+                        <label for="loginEmail" class="block text-sm font-medium text-gray-700">Email</label>
+                        <input type="email" id="loginEmail" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500">
+                    </div>
+                    <div>
+                        <label for="loginPassword" class="block text-sm font-medium text-gray-700">Password</label>
+                        <input type="password" id="loginPassword" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500">
+                    </div>
+                    <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-md shadow-md">Login</button>
+                </form>
+                <!-- Link untuk registrasi dihapus -->
+            </div>
+
+            <!-- Bagian Form Registrasi Dihapus Sepenuhnya -->
+
+             <div id="authLoadingIndicator" class="hidden text-center py-4">
+                <svg class="animate-spin h-8 w-8 text-green-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <p class="text-gray-600 mt-2">Memproses...</p>
+            </div>
+            <div id="messageContainer" class="hidden p-3 rounded-md text-sm mt-4"></div> <!-- Untuk pesan error login -->
+        </div>
+    </div>
+    
+    <!-- PENTING: Pastikan path ke file JS sudah benar relatif terhadap lokasi index.html -->
+    <script type="module" src="js/main.js"></script> 
+    <script type="module" src="js/auth.js"></script>
+    <script type="module" src="js/firestore_utils.js"></script> <!-- Jika diperlukan oleh auth.js atau main.js di halaman ini -->
+    <script type="module" src="js/loading.js"></script>
+</body>
+</html>
