@@ -1,57 +1,56 @@
-    # Nama alur kerja yang akan muncul di tab Actions GitHub
-    name: Deploy to GitHub Pages
+# Nama alur kerja yang akan muncul di tab Actions GitHub
+name: Deploy to GitHub Pages
 
-    # Pemicu: Alur kerja ini akan berjalan setiap kali ada push ke branch 'main'
-    on:
-      push:
-        branches:
-          - main
+# Pemicu: Alur kerja ini akan berjalan setiap kali ada push ke branch 'main'
+on:
+  push:
+    branches:
+      - main
 
-    # Izin yang dibutuhkan agar Action bisa mempublikasikan ke GitHub Pages
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
+# Izin yang dibutuhkan agar Action bisa mempublikasikan ke GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
 
-    # Pekerjaan yang akan dilakukan
-    jobs:
-      deploy:
-        # Menentukan environment untuk deployment ke Pages
-        environment:
-          name: github-pages
-          url: ${{ steps.deployment.outputs.page_url }}
-        runs-on: ubuntu-latest # Menggunakan server Linux terbaru
-        
-        steps:
-          # Langkah 1: Mengunduh kode Anda dari repositori
-          - name: Checkout
-            uses: actions/checkout@v4
-
-          # Langkah 2: Membuat file firebase-config.js dari template dan secrets
-          - name: Create Firebase Config
-            run: |
-              # Salin template menjadi file yang sebenarnya
-              cp public/js/firebase-config.template.js public/js/firebase-config.js
-              
-              # Ganti setiap placeholder dengan nilai dari GitHub Secrets
-              sed -i "s|__FIREBASE_API_KEY__|${{ secrets.FIREBASE_API_KEY }}|g" public/js/firebase-config.js
-              sed -i "s|__FIREBASE_AUTH_DOMAIN__|${{ secrets.FIREBASE_AUTH_DOMAIN }}|g" public/js/firebase-config.js
-              sed -i "s|__FIREBASE_PROJECT_ID__|${{ secrets.FIREBASE_PROJECT_ID }}|g" public/js/firebase-config.js
-              sed -i "s|__FIREBASE_STORAGE_BUCKET__|${{ secrets.FIREBASE_STORAGE_BUCKET }}|g" public/js/firebase-config.js
-              sed -i "s|__FIREBASE_MESSAGING_SENDER_ID__|${{ secrets.FIREBASE_MESSAGING_SENDER_ID }}|g" public/js/firebase-config.js
-              sed -i "s|__FIREBASE_APP_ID__|${{ secrets.FIREBASE_APP_ID }}|g" public/js/firebase-config.js
-
-          # Langkah 3: Menyiapkan file-file dari folder 'public' untuk di-deploy
-          - name: Setup Pages
-            uses: actions/configure-pages@v5
-          - name: Upload artifact
-            uses: actions/upload-pages-artifact@v3
-            with:
-              # Unggah semua isi dari folder 'public'
-              path: './public'
-              
-          # Langkah 4: Mempublikasikan ke GitHub Pages
-          - name: Deploy to GitHub Pages
-            id: deployment
-            uses: actions/deploy-pages@v4
+# Pekerjaan yang akan dilakukan
+jobs:
+  deploy:
+    # Menentukan environment untuk deployment ke Pages
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest # Menggunakan server Linux terbaru
     
+    steps:
+      # Langkah 1: Mengunduh kode Anda dari repositori
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Langkah 2: Membuat file firebase-config.js dari template dan secrets
+      - name: Create Firebase Config
+        run: |
+          # Salin template menjadi file yang sebenarnya
+          cp public/js/firebase-config.template.js public/js/firebase-config.js
+          
+          # Ganti setiap placeholder dengan nilai dari GitHub Secrets
+          sed -i "s|__FIREBASE_API_KEY__|${{ secrets.FIREBASE_API_KEY }}|g" public/js/firebase-config.js
+          sed -i "s|__FIREBASE_AUTH_DOMAIN__|${{ secrets.FIREBASE_AUTH_DOMAIN }}|g" public/js/firebase-config.js
+          sed -i "s|__FIREBASE_PROJECT_ID__|${{ secrets.FIREBASE_PROJECT_ID }}|g" public/js/firebase-config.js
+          sed -i "s|__FIREBASE_STORAGE_BUCKET__|${{ secrets.FIREBASE_STORAGE_BUCKET }}|g" public/js/firebase-config.js
+          sed -i "s|__FIREBASE_MESSAGING_SENDER_ID__|${{ secrets.FIREBASE_MESSAGING_SENDER_ID }}|g" public/js/firebase-config.js
+          sed -i "s|__FIREBASE_APP_ID__|${{ secrets.FIREBASE_APP_ID }}|g" public/js/firebase-config.js
+
+      # Langkah 3: Menyiapkan file-file dari folder 'public' untuk di-deploy
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # Unggah semua isi dari folder 'public'
+          path: './public'
+          
+      # Langkah 4: Mempublikasikan ke GitHub Pages
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
