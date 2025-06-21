@@ -5,8 +5,9 @@ import {
     signOut, 
     onAuthStateChanged 
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { firebaseConfig } from './firebase-config.js'; 
+// PENAMBAHAN: Impor 'setDoc' untuk membuat dokumen pengguna baru
+import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { firebaseConfig, APOTEK_ID } from './firebase-config.js'; 
 import { displayMessage, showLoading, updateUserInterfaceForRole } from './main.js'; 
 
 const app = initializeApp(firebaseConfig); 
@@ -33,33 +34,70 @@ function notifyAuthSubscribers() {
     authSubscribers.length = 0;
 }
 
-async function fetchUserRole(userId) {
-    if (!userId) return null;
+/**
+ * Mengambil metadata pengguna. Jika dokumen pengguna tidak ada,
+ * maka akan dibuatkan secara otomatis dengan nilai default.
+ * @param {User} user - Objek pengguna dari Firebase Authentication.
+ * @returns {Promise<Object|null>} Objek berisi peran dan status, atau null jika gagal.
+ */
+async function fetchAndProvisionUser(user) {
+    if (!user) return null;
+    const userDocRef = doc(db, "users", user.uid);
     try {
-        const userDocRef = doc(db, "users", userId);
         const userDocSnap = await getDoc(userDocRef);
         if (userDocSnap.exists()) {
-            return userDocSnap.data().role || 'kasir'; 
+            // Pengguna sudah ada, kembalikan datanya
+            const data = userDocSnap.data();
+            return {
+                role: data.role || 'kasir',
+                status: data.status || 'nonaktif'
+            };
         } else {
-            console.warn(`Dokumen pengguna tidak ditemukan untuk UID: ${userId}.`);
-            return 'kasir'; 
+            // =================================================================
+            // FITUR BARU: Pembuatan Profil Pengguna Otomatis
+            // =================================================================
+            console.log(`Pengguna baru terdeteksi: ${user.email}. Membuat profil default...`);
+            const defaultUserData = {
+                email: user.email,
+                role: 'kasir', // Peran default untuk pengguna baru
+                status: 'nonaktif', // Status default, harus diaktifkan oleh Superadmin
+                apotekId: APOTEK_ID, // ID Apotek dari konfigurasi
+                createdAt: new Date()
+            };
+            // Buat dokumen baru di Firestore untuk pengguna ini
+            await setDoc(userDocRef, defaultUserData);
+            console.log(`Profil untuk ${user.email} berhasil dibuat.`);
+            // Kembalikan data default agar bisa diproses lebih lanjut
+            return {
+                role: defaultUserData.role,
+                status: defaultUserData.status
+            };
         }
     } catch (error) {
-        console.error("Error fetching user role:", error);
-        return 'kasir';
+        console.error("Error fetching or provisioning user:", error);
+        return null;
     }
 }
 
 onAuthStateChanged(auth, async (user) => {
     const currentPage = window.location.pathname.split("/").pop() || "index.html";
     const isLoginPage = currentPage === "index.html" || currentPage === "";
-    const authSection = document.getElementById('authSection');
-    const mainNav = document.getElementById('mainNav'); // Note: mainNav might not be in DOM yet
-    const userInfoEl = document.getElementById('userInfo'); 
     
     if (user) {
+        // Gunakan fungsi baru yang bisa membuat profil pengguna
+        const metadata = await fetchAndProvisionUser(user);
+
+        // Cek status pengguna. Jika nonaktif, logout paksa.
+        if (!metadata || metadata.status !== 'aktif') {
+            if (!isLoginPage) {
+                displayMessage("Akun Anda nonaktif atau menunggu persetujuan. Hubungi Superadmin.", "error");
+            }
+            await signOut(auth);
+            return; 
+        }
+
         currentUserId = user.uid;
-        currentUserRole = await fetchUserRole(user.uid);
+        currentUserRole = metadata.role;
         console.log("AUTH.JS: Pengguna terautentikasi:", user.email, "Peran:", currentUserRole);
 
         if (isLoginPage) {
@@ -67,7 +105,7 @@ onAuthStateChanged(auth, async (user) => {
             return; 
         }
         
-        // This logic remains, to be acted upon once the navbar is loaded
+        const userInfoEl = document.getElementById('userInfo');
         if (userInfoEl) userInfoEl.textContent = `Login sebagai: ${user.email} (Peran: ${currentUserRole})`;
         
     } else {
@@ -80,6 +118,7 @@ onAuthStateChanged(auth, async (user) => {
             return;
         }
 
+        const authSection = document.getElementById('authSection');
         if (authSection) authSection.classList.remove('hidden');
     }
     
@@ -88,26 +127,18 @@ onAuthStateChanged(auth, async (user) => {
     notifyAuthSubscribers();
 });
 
-// === PERUBAHAN DI SINI: Fungsi logout diekspor agar bisa dipanggil dari main.js ===
-/**
- * Handles the user logout process.
- */
 export async function handleLogout() {
     try {
         await signOut(auth);
-        // `onAuthStateChanged` will automatically handle the redirect to index.html
-        console.log("AUTH.JS: Logout dipicu manual.");
+        console.log("AUTH.JS: Logout berhasil.");
     } catch (error) {
         console.error("Logout error:", error);
-        // Display message on the current page if there's an error
         displayMessage(`Logout gagal: ${error.message}`, "error"); 
     }
 }
-// === AKHIR PERUBAHAN ===
 
 document.addEventListener('DOMContentLoaded', () => {
     const loginForm = document.getElementById('loginForm');
-
     if (loginForm) {
         loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -119,7 +150,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const password = document.getElementById('loginPassword').value;
             try {
                 await signInWithEmailAndPassword(auth, email, password);
-                displayMessage("Login berhasil! Mengarahkan...", "success", "messageContainer");
             } catch (error) {
                 console.error("Login error:", error);
                 let friendlyMessage = "Login gagal. Periksa kembali email dan password Anda.";
@@ -135,6 +165,4 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
-
-    // Event listener untuk logout dipindahkan ke main.js agar berjalan setelah nav dimuat.
 });

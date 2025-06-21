@@ -9,20 +9,24 @@ import {
     getDocs
 } from './firestore_utils.js';
 
-// Variabel state global untuk menyimpan data yang telah diambil
 let allSdmExpenses = [];
 let allPatientSales = [];
 let allInventoryItems = [];
 
-// --- UTAMA ---
 document.addEventListener('DOMContentLoaded', () => {
     subscribeToAuthReady(({ userId, role }) => {
         const loadingGlobal = document.getElementById('loadingOverlay');
         if (loadingGlobal) loadingGlobal.classList.add('hidden');
 
-        if (userId && role === 'admin') {
+        // =================================================================
+        // PERBAIKAN DI SINI: Izinkan akses untuk 'admin' atau 'superadmin'
+        // =================================================================
+        const hasAccess = role === 'admin' || role === 'superadmin';
+
+        if (userId && hasAccess) {
             initializeManajemenPage();
             document.getElementById('mainContent')?.classList.remove('hidden');
+            document.getElementById('accessDeniedMessage')?.classList.add('hidden');
         } else {
             document.getElementById('mainContent')?.classList.add('hidden');
             document.getElementById('accessDeniedMessage')?.classList.remove('hidden');
@@ -30,17 +34,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-/**
- * Inisialisasi utama untuk halaman manajemen.
- */
 function initializeManajemenPage() {
     setupTabNavigation();
     fetchAllData();
 }
 
-/**
- * Mengatur event listener untuk perpindahan antar tab.
- */
 function setupTabNavigation() {
     const tabs = document.querySelectorAll('.tab-button-manajemen');
     const tabContents = document.querySelectorAll('.tab-content-manajemen');
@@ -57,9 +55,6 @@ function setupTabNavigation() {
     });
 }
 
-/**
- * Mengambil semua data yang diperlukan dari Firestore sekali saja untuk efisiensi.
- */
 async function fetchAllData() {
     const loadingIndicator = document.getElementById('loadingIndicatorManajemen');
     if (loadingIndicator) loadingIndicator.classList.remove('hidden');
@@ -89,25 +84,12 @@ async function fetchAllData() {
     }
 }
 
-/**
- * Menginisialisasi semua tab setelah data berhasil diambil.
- */
 function initializeAllTabs() {
     initializeSdmTab();
     initializePasienTab();
     initializeDistributorTab();
 }
 
-// ===================================================================
-//  LOGIKA CUSTOM SEARCHABLE DROPDOWN (Reusable & Improved)
-// ===================================================================
-/**
- * Membuat komponen dropdown yang bisa dicari.
- * @param {string} containerId - ID dari div container dropdown.
- * @param {Array<string>} data - Array berisi string untuk opsi dropdown.
- * @param {function(string):void} onSelectCallback - Fungsi yang dipanggil saat item dipilih.
- * @param {string} emptyStateId - ID dari elemen yang ditampilkan jika data kosong.
- */
 function createSearchableDropdown(containerId, data, onSelectCallback, emptyStateId) {
     const container = document.getElementById(containerId);
     const emptyState = document.getElementById(emptyStateId);
@@ -169,7 +151,6 @@ function createSearchableDropdown(containerId, data, onSelectCallback, emptyStat
         toggleDropdown(!list.classList.contains('hidden'));
     });
     
-    // PERBAIKAN: Listener ini memastikan dropdown tertutup saat klik di mana pun di luar komponen.
     document.addEventListener('click', (e) => {
         if (!container.contains(e.target)) {
             toggleDropdown(false);
@@ -179,8 +160,6 @@ function createSearchableDropdown(containerId, data, onSelectCallback, emptyStat
     populateList();
 }
 
-
-// --- Inisialisasi Tab SDM ---
 function initializeSdmTab() {
     const sdmNames = [...new Set(allSdmExpenses.map(item => item.description.trim()))].sort();
     createSearchableDropdown('sdmDropdownContainer', sdmNames, renderSdmDetails, 'sdmEmptyState');
@@ -219,8 +198,6 @@ function renderSdmDetails(name) {
     detailsDiv.classList.remove('hidden');
 }
 
-
-// --- Inisialisasi Tab Pasien ---
 function initializePasienTab() {
     const patientNames = [...new Set(allPatientSales.map(sale => sale.patientName.trim()))].sort();
     createSearchableDropdown('pasienDropdownContainer', patientNames, renderPasienDetails, 'pasienEmptyState');
@@ -264,7 +241,6 @@ function renderPasienDetails(name) {
     detailsDiv.classList.remove('hidden');
 }
 
-// --- Inisialisasi Tab Distributor ---
 function initializeDistributorTab() {
     const distributorNames = [...new Set(allInventoryItems.map(item => item.distributor.trim()))].sort();
     createSearchableDropdown('distributorDropdownContainer', distributorNames, renderDistributorDetails, 'distributorEmptyState');

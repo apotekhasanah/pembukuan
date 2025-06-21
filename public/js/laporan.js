@@ -13,23 +13,21 @@ document.addEventListener('DOMContentLoaded', () => {
         const loadingGlobal = document.getElementById('loadingOverlay');
         if (loadingGlobal) loadingGlobal.classList.add('hidden');
 
-        if (userId && role === 'admin') {
+        // =================================================================
+        // PERBAIKAN DI SINI: Izinkan akses untuk 'admin' atau 'superadmin'
+        // =================================================================
+        const hasAccess = role === 'admin' || role === 'superadmin';
+
+        if (userId && hasAccess) {
             initializeLaporanPage();
-            const mainContent = document.getElementById('mainContent');
-            if (mainContent) mainContent.classList.remove('hidden');
-            const accessDenied = document.getElementById('accessDeniedMessage');
-            if (accessDenied) accessDenied.classList.add('hidden');
-        } else if (userId && role !== 'admin') {
-            const mainContent = document.getElementById('mainContent');
-            const accessDeniedMessage = document.getElementById('accessDeniedMessage');
-            if (mainContent) mainContent.classList.add('hidden');
-            if (accessDeniedMessage) accessDeniedMessage.classList.remove('hidden');
-        } else { 
-            const mainContent = document.getElementById('mainContent');
-            const accessDeniedMessage = document.getElementById('accessDeniedMessage');
-            if (mainContent) mainContent.classList.add('hidden');
-            if (accessDeniedMessage) accessDeniedMessage.classList.remove('hidden');
+            document.getElementById('mainContent')?.classList.remove('hidden');
+            document.getElementById('accessDeniedMessage')?.classList.add('hidden');
+        } else {
+            // Pengguna lain (mis. kasir) atau yang tidak login akan ditolak
+            document.getElementById('mainContent')?.classList.add('hidden');
+            document.getElementById('accessDeniedMessage')?.classList.remove('hidden');
         }
+        
         const loadingLaporan = document.getElementById('loadingIndicatorLaporan');
         if (loadingLaporan) loadingLaporan.classList.add('hidden');
     });

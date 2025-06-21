@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Manajemen Pengguna - Apotek Hasanah Rahayu</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="icon" type="image/png" href="media/icon.png">
+    <link rel="shortcut icon" href="media/favicon.ico">
+</head>
+<body class="antialiased text-gray-800 bg-gray-100">
+
+    <div id="loadingOverlay">
+        <div class="spinner"></div>
+        <p class="mt-4 text-lg font-semibold text-green-700">Memuat Halaman...</p>
+    </div>
+
+    <div id="navbar-placeholder"></div>
+
+    <div id="mainContent" class="container mx-auto p-4 md:p-8 hidden">
+        <header class="mb-8 text-center">
+            <h1 class="text-3xl md:text-4xl font-bold text-green-700">Manajemen Pengguna</h1>
+            <p id="userInfo" class="text-sm text-gray-600 mt-1">Kelola akun admin dan kasir.</p>
+        </header>
+
+        <div id="messageContainer" class="hidden p-3 rounded-md text-sm mb-4"></div>
+        
+        <!-- ======================================================== -->
+        <!-- BAGIAN BARU: Instruksi untuk Menambah Pengguna -->
+        <!-- ======================================================== -->
+        <div class="bg-white p-6 rounded-lg shadow-lg mb-8">
+            <h2 class="text-2xl font-semibold text-gray-700 mb-4">Cara Menambah Pengguna Baru</h2>
+            <div class="space-y-3 text-gray-600">
+                <p>Untuk alasan keamanan, penambahan akun pengguna (pembuatan email dan password) harus dilakukan melalui Firebase Console yang aman.</p>
+                <ol class="list-decimal list-inside space-y-2 pl-4">
+                    <li>Buka <a href="https://console.firebase.google.com/" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline font-medium">Firebase Console</a> proyek ini.</li>
+                    <li>Pergi ke bagian <strong>Authentication</strong>, lalu klik tab <strong>Users</strong>.</li>
+                    <li>Klik tombol <strong>"Add user"</strong> dan masukkan email serta password untuk pengguna baru.</li>
+                    <li>Setelah pengguna dibuat, minta mereka untuk login ke aplikasi ini.</li>
+                    <li>Akun mereka akan otomatis muncul di tabel di bawah dengan status "Nonaktif". Gunakan tombol <strong>"Edit"</strong> untuk mengubah peran dan mengaktifkan akun mereka.</li>
+                </ol>
+            </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-lg shadow-lg">
+            <h2 class="text-2xl font-semibold text-gray-700 mb-4">Daftar Pengguna</h2>
+            <div id="usersTableContainer" class="table-container border border-gray-200 rounded-md">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Peran</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody id="usersTableBody" class="bg-white divide-y divide-gray-200">
+                        <tr><td colspan="4" class="text-center py-6 text-gray-500">Memuat data pengguna...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pesan Akses Ditolak -->
+    <div id="accessDeniedMessage" class="container mx-auto p-4 md:p-8 text-center hidden">
+        <h2 class="text-2xl font-semibold text-red-600">Akses Ditolak</h2>
+        <p class="text-gray-700 mt-2">Hanya Superadmin yang dapat mengakses halaman ini.</p>
+        <a href="dashboard.html" class="mt-4 inline-block bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded">Kembali ke Dashboard</a>
+    </div>
+
+    <!-- Modal untuk Edit Pengguna -->
+    <div id="editUserModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center hidden z-50">
+        <div class="bg-white p-8 rounded-lg shadow-xl w-full max-w-lg mx-auto">
+            <h3 id="editUserModalTitle" class="text-2xl font-bold text-gray-800 mb-6">Edit Pengguna</h3>
+            <form id="editUserForm" class="space-y-4">
+                <input type="hidden" id="editUserId">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Email</label>
+                    <p id="editUserEmail" class="mt-1 text-gray-600 bg-gray-100 p-2 rounded-md"></p>
+                </div>
+                <div>
+                    <label for="editUserRole" class="block text-sm font-medium text-gray-700">Peran</label>
+                    <select id="editUserRole" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500">
+                        <option value="kasir">Kasir</option>
+                        <option value="admin">Admin</option>
+                        <option value="superadmin">Superadmin</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="editUserStatus" class="block text-sm font-medium text-gray-700">Status</label>
+                    <select id="editUserStatus" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500">
+                        <option value="aktif">Aktif</option>
+                        <option value="nonaktif">Nonaktif</option>
+                    </select>
+                </div>
+
+                <div class="flex items-center justify-end space-x-4 pt-4">
+                     <div id="editLoadingIndicator" class="hidden">
+                        <svg class="animate-spin h-5 w-5 text-green-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    </div>
+                    <button type="button" id="cancelEditUserButton" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-md shadow-md">Batal</button>
+                    <button type="submit" class="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-6 rounded-md shadow-md">Simpan Perubahan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script type="module" src="js/main.js"></script>
+    <script type="module" src="js/auth.js"></script>
+    <script type="module" src="js/firestore_utils.js"></script>
+    <script type="module" src="js/manajemen_pengguna.js"></script>
+    <script type="module" src="js/loading.js"></script>
+</body>
+</html>

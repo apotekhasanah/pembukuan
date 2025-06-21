@@ -1,9 +1,7 @@
-// === PERUBAHAN DI SINI: Impor fungsi handleLogout ===
 import { handleLogout } from './auth.js';
-// === AKHIR PERUBAHAN ===
 
 /**
- * Fetches and injects the navigation bar HTML, then sets up its functionality.
+ * Mengambil dan menyuntikkan HTML navigasi, lalu mengatur fungsionalitasnya.
  */
 async function loadNavbar() {
     const navbarPlaceholder = document.getElementById('navbar-placeholder');
@@ -14,8 +12,6 @@ async function loadNavbar() {
         if (!response.ok) throw new Error('Gagal memuat navigasi.');
         const navHtml = await response.text();
         navbarPlaceholder.innerHTML = navHtml;
-        
-        // Setelah navbar dimuat, jalankan setup untuk semua fungsionalitas di dalamnya.
         setupNavbar();
     } catch (error) {
         console.error('Gagal memuat navbar:', error);
@@ -24,17 +20,16 @@ async function loadNavbar() {
 }
 
 /**
- * Sets up active links, mobile menu, and logout functionality for the dynamically loaded navbar.
+ * Mengatur link aktif, menu mobile, dan fungsionalitas logout untuk navbar.
  */
 function setupNavbar() {
     const mainNav = document.getElementById('mainNav');
     if (!mainNav) return;
 
-    const navLinksDesktop = document.querySelectorAll('#navLinks a.nav-link');
-    const navLinksMobile = document.querySelectorAll('#mobileMenu a.nav-link-mobile');
+    const navLinksDesktop = mainNav.querySelectorAll('#navLinks a.nav-link');
+    const navLinksMobile = mainNav.querySelectorAll('#mobileMenu a.nav-link-mobile');
     const currentPath = window.location.pathname.split("/").pop() || 'dashboard.html';
 
-    // Fungsi untuk menandai link yang aktif
     function setActiveLink(links, activeClass) {
         links.forEach(link => {
             const linkHref = link.getAttribute('href');
@@ -52,36 +47,30 @@ function setupNavbar() {
     setActiveLink(navLinksDesktop, 'active-nav');
     setActiveLink(navLinksMobile, 'active-nav-mobile');
 
-    // Fungsi untuk tombol hamburger di layar kecil
     const hamburgerButton = document.getElementById('hamburgerButton');
     const mobileMenu = document.getElementById('mobileMenu');
     if (hamburgerButton && mobileMenu) {
         hamburgerButton.addEventListener('click', () => mobileMenu.classList.toggle('hidden'));
     }
     
-    // === PERUBAHAN DI SINI: Menambahkan event listener untuk tombol logout ===
     const logoutButton = document.getElementById('logoutButton');
     const logoutButtonMobile = document.getElementById('logoutButtonMobile');
 
-    if (logoutButton) {
-        logoutButton.addEventListener('click', handleLogout);
-    }
-    if (logoutButtonMobile) {
-        logoutButtonMobile.addEventListener('click', handleLogout);
-    }
-    // === AKHIR PERUBAHAN ===
+    if (logoutButton) logoutButton.addEventListener('click', handleLogout);
+    if (logoutButtonMobile) logoutButtonMobile.addEventListener('click', handleLogout);
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Memanggil fungsi untuk memuat navbar saat halaman siap.
     loadNavbar();
 });
 
-// ... (sisa fungsi seperti displayMessage, showLoading, formatRupiah, dll. tetap sama) ...
+// --- FUNGSI UTILITAS YANG DIEKSPOR ---
+
 export function displayMessage(message, type = 'success', containerId = 'messageContainer') {
     const messageContainer = document.getElementById(containerId);
     if (!messageContainer) {
         console.warn(`Message container '${containerId}' not found.`);
+        alert(message);
         return;
     }
     messageContainer.textContent = message;
@@ -131,40 +120,28 @@ export function formatDate(dateObject) {
     });
 }
 
+/**
+ * Memperbarui elemen UI berdasarkan peran pengguna yang login.
+ * @param {string | null} role Peran pengguna ('superadmin', 'admin', 'kasir') atau null.
+ */
 export function updateUserInterfaceForRole(role) {
-    // Fungsi ini akan dipanggil dari auth.js setelah status login diketahui
-    // dan juga setelah navbar dimuat untuk memastikan elemen UI yang benar ditampilkan/disembunyikan.
     console.log("MAIN.JS: Updating UI for role:", role);
+    
+    // Definisikan elemen berdasarkan peran
+    const superadminElements = document.querySelectorAll('.superadmin-only-nav');
+    const adminElements = document.querySelectorAll('.admin-only-nav');
     const adminFeatures = document.querySelectorAll('.admin-feature');
-    const adminOnlyNavLinks = document.querySelectorAll('.admin-only-nav');
-    const adminOnlyTableHeaders = document.querySelectorAll('.admin-only-table-header');
-    const adminOnlyTableCells = document.querySelectorAll('.admin-only-table-cell');
+    const adminTableHeaders = document.querySelectorAll('.admin-only-table-header');
+    // PENYEMPURNAAN: Tambahkan selektor untuk sel tabel
+    const adminTableCells = document.querySelectorAll('.admin-only-table-cell');
 
+    const isSuperAdmin = role === 'superadmin';
     const isAdmin = role === 'admin';
 
-    adminFeatures.forEach(el => el.classList.toggle('hidden', !isAdmin));
-    adminOnlyNavLinks.forEach(el => el.style.display = isAdmin ? '' : 'none');
-    adminOnlyTableHeaders.forEach(th => th.style.display = isAdmin ? '' : 'none');
-    adminOnlyTableCells.forEach(td => td.style.display = isAdmin ? '' : 'table-cell');
-    
-    const kasirSectionEl = document.getElementById('kasirSection');
-    const inventoryFormSectionEl = document.getElementById('inventoryFormSection');
-    if (kasirSectionEl && inventoryFormSectionEl) {
-        const inventoryFormIsHidden = inventoryFormSectionEl.classList.contains('hidden') || getComputedStyle(inventoryFormSectionEl).display === 'none';
-        if (inventoryFormIsHidden && window.innerWidth >= 1024) { 
-            kasirSectionEl.classList.add('lg:col-span-2');
-        } else {
-            kasirSectionEl.classList.remove('lg:col-span-2');
-        }
-    }
-
-    const currentPage = window.location.pathname.split("/").pop() || "dashboard.html";
-    const mainContentEl = document.getElementById('mainContent'); 
-    const accessDeniedMessageEl = document.getElementById('accessDeniedMessage');
-    const isAdminOnlyPage = ["laporan.html", "keuangan.html", "status_inventaris.html"].includes(currentPage);
-
-    if (isAdminOnlyPage) {
-        if (mainContentEl) mainContentEl.classList.toggle('hidden', !isAdmin);
-        if (accessDeniedMessageEl) accessDeniedMessageEl.classList.toggle('hidden', isAdmin);
-    }
+    // Logika visibilitas:
+    superadminElements.forEach(el => el.style.display = isSuperAdmin ? '' : 'none');
+    adminElements.forEach(el => el.style.display = (isSuperAdmin || isAdmin) ? '' : 'none');
+    adminFeatures.forEach(el => el.style.display = (isSuperAdmin || isAdmin) ? '' : 'none');
+    adminTableHeaders.forEach(th => th.style.display = (isSuperAdmin || isAdmin) ? '' : 'table-cell'); // Gunakan 'table-cell' untuk header
+    adminTableCells.forEach(td => td.style.display = (isSuperAdmin || isAdmin) ? '' : 'table-cell'); // Gunakan 'table-cell' untuk sel
 }

@@ -1,12 +1,10 @@
 import { displayMessage, showLoading, formatRupiah, formatDate, updateUserInterfaceForRole } from './main.js';
 import { getCurrentUserId, getCurrentUserRole, subscribeToAuthReady } from './auth.js';
-// === PERUBAHAN UTAMA: 'getOtherIncomesCollectionRef' sekarang diimpor dari file utilitas terpusat. ===
-// 'collection' dihapus dari impor karena tidak lagi digunakan secara langsung di sini.
 import { 
     getSalesCollectionRef, 
     getExpensesCollectionRef, 
     getAccountsCollectionRef, 
-    getOtherIncomesCollectionRef, // <-- Diimpor dari sini
+    getOtherIncomesCollectionRef,
     getDb, 
     query, 
     where, 
@@ -19,30 +17,23 @@ import {
     onSnapshot 
 } from './firestore_utils.js';
 
-// === DIHAPUS: Definisi lokal yang menyebabkan path salah telah dihapus. ===
-// const getOtherIncomesCollectionRef = () => collection(getDb(), 'otherIncomes'); // <-- BARIS INI DIHAPUS
-
 document.addEventListener('DOMContentLoaded', () => {
     subscribeToAuthReady(({ userId, role }) => {
         const loadingGlobal = document.getElementById('loadingOverlay');
         if (loadingGlobal) loadingGlobal.classList.add('hidden');
 
-        if (userId && role === 'admin') {
+        // =================================================================
+        // PERBAIKAN DI SINI: Izinkan akses untuk 'admin' atau 'superadmin'
+        // =================================================================
+        const hasAccess = role === 'admin' || role === 'superadmin';
+
+        if (userId && hasAccess) {
             initializeKeuanganPage();
-            const mainContent = document.getElementById('mainContent');
-            if (mainContent) mainContent.classList.remove('hidden');
-            const accessDenied = document.getElementById('accessDeniedMessage');
-            if (accessDenied) accessDenied.classList.add('hidden');
-        } else if (userId && role !== 'admin') {
-            const mainContent = document.getElementById('mainContent');
-            const accessDeniedMessage = document.getElementById('accessDeniedMessage');
-            if (mainContent) mainContent.classList.add('hidden');
-            if (accessDeniedMessage) accessDeniedMessage.classList.remove('hidden');
+            document.getElementById('mainContent')?.classList.remove('hidden');
+            document.getElementById('accessDeniedMessage')?.classList.add('hidden');
         } else {
-            const mainContent = document.getElementById('mainContent');
-            const accessDeniedMessage = document.getElementById('accessDeniedMessage');
-            if (mainContent) mainContent.classList.add('hidden');
-            if (accessDeniedMessage) accessDeniedMessage.classList.remove('hidden');
+            document.getElementById('mainContent')?.classList.add('hidden');
+            document.getElementById('accessDeniedMessage')?.classList.remove('hidden');
         }
     });
 });
@@ -77,21 +68,17 @@ function initializeKeuanganPage() {
     initializeLabaRugi();
     initializeArusKas();
     
-    // Secara default, klik tab 'Pembukuan' untuk menampilkannya saat halaman dimuat
     const defaultTab = document.querySelector('button[data-tab-target="labaRugi"]');
     if (defaultTab) {
         defaultTab.click();
     }
 }
 
-
-// --- BAGIAN PENCATATAN (INPUT TRANSAKSI) ---
 function initializePencatatan() {
     const incomeForm = document.getElementById('incomeForm');
     const expenseForm = document.getElementById('expenseForm');
     const accountForm = document.getElementById('accountForm');
     
-    // Set tanggal default untuk semua form
     const incomeDateEl = document.getElementById('incomeDate');
     const expenseDateEl = document.getElementById('expenseDate');
     const accountDueDateEl = document.getElementById('accountDueDate');
@@ -100,7 +87,6 @@ function initializePencatatan() {
     if(accountDueDateEl) accountDueDateEl.valueAsDate = new Date();
 
 
-    // Event Listener untuk form Pendapatan Lain-lain
     if (incomeForm) {
         incomeForm.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -114,7 +100,6 @@ function initializePencatatan() {
             }
 
             try {
-                // Sekarang menggunakan fungsi yang benar, menyimpan data di path yang benar
                 await addDoc(getOtherIncomesCollectionRef(), incomeData);
                 displayMessage("Pendapatan lain-lain berhasil dicatat.", "success");
                 incomeForm.reset();
@@ -126,7 +111,6 @@ function initializePencatatan() {
         });
     }
 
-    // Event listener untuk form Biaya (logika tetap sama)
     if (expenseForm) {
         expenseForm.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -152,7 +136,6 @@ function initializePencatatan() {
         });
     }
 
-    // Event listener untuk form Utang/Piutang (logika tetap sama)
     if (accountForm) {
         accountForm.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -182,7 +165,6 @@ function initializePencatatan() {
     }
 }
 
-// --- BAGIAN DAFTAR UTANG & PIUTANG (Tidak ada perubahan) ---
 function initializeUtangPiutang() {
     let unsubscribeUtang = null;
     let unsubscribePiutang = null;
@@ -272,8 +254,6 @@ function confirmMarkAsPaid(id, data) {
     }, { once: true });
 }
 
-
-// --- BAGIAN LAPORAN LABA RUGI (Sisa kode tidak berubah) ---
 let cachedLabaRugiData = []; 
 
 function initializeLabaRugi() {
@@ -292,7 +272,7 @@ function initializeLabaRugi() {
     
     generateBtn.addEventListener('click', generateLabaRugiReport);
     exportBtn.addEventListener('click', exportLabaRugiToExcel);
-    generateLabaRugiReport(); // Generate laporan saat pertama kali halaman dibuka
+    generateLabaRugiReport();
 }
 
 async function generateLabaRugiReport() {
@@ -305,10 +285,9 @@ async function generateLabaRugiReport() {
     const endDate = new Date(endDateVal); endDate.setHours(23,59,59,999);
     
     document.getElementById('labaRugiResult').classList.add('hidden');
-    cachedLabaRugiData = []; // Reset cache
+    cachedLabaRugiData = [];
 
     try {
-        // Ambil data Penjualan
         const salesQuery = query(getSalesCollectionRef(), where("saleDate", ">=", startDate), where("saleDate", "<=", endDate));
         const salesSnapshot = await getDocs(salesQuery);
         let totalPenjualan = 0;
@@ -323,7 +302,6 @@ async function generateLabaRugiReport() {
             }
         });
 
-        // Ambil data Biaya
         const expensesQuery = query(getExpensesCollectionRef(), where("date", ">=", startDate), where("date", "<=", endDate));
         const expensesSnapshot = await getDocs(expensesQuery);
         let totalBiaya = 0;
@@ -334,19 +312,16 @@ async function generateLabaRugiReport() {
             detailBiaya[expense.category] = (detailBiaya[expense.category] || 0) + expense.amount;
         });
 
-        // === PERBAIKAN DI SINI: Kode ini sekarang mengambil dari path yang benar. ===
         const incomesQuery = query(getOtherIncomesCollectionRef(), where("date", ">=", startDate), where("date", "<=", endDate));
         const incomesSnapshot = await getDocs(incomesQuery);
         let totalPendapatanLain = 0;
         incomesSnapshot.forEach(doc => {
             totalPendapatanLain += doc.data().amount;
         });
-        // === AKHIR PERBAIKAN ===
 
         const labaKotor = totalPenjualan - totalHpp;
         const labaBersih = labaKotor + totalPendapatanLain - totalBiaya;
 
-        // Update UI
         document.getElementById('lrTotalPenjualan').textContent = formatRupiah(totalPenjualan);
         document.getElementById('lrTotalHpp').textContent = `(${formatRupiah(totalHpp)})`;
         document.getElementById('lrLabaKotor').textContent = formatRupiah(labaKotor);
@@ -409,8 +384,6 @@ function exportLabaRugiToExcel() {
     displayMessage("Laporan Laba Rugi berhasil diexport.", "success");
 }
 
-
-// --- BAGIAN LAPORAN ARUS KAS (Sisa kode tidak berubah) ---
 function initializeArusKas() {
     const startDateInput = document.getElementById('arusKasStartDate');
     const endDateInput = document.getElementById('arusKasEndDate');
@@ -447,12 +420,11 @@ async function generateArusKasReport() {
     const tableBody = document.getElementById('arusKasTableBody');
     arusKasResultDiv.classList.add('hidden');
     tableBody.innerHTML = '';
-    cachedArusKasData = []; // Reset cache
+    cachedArusKasData = [];
 
     try {
         let allTransactions = [];
 
-        // 1. Kas Masuk dari Penjualan
         const salesQuery = query(getSalesCollectionRef(), where("saleDate", ">=", startDate), where("saleDate", "<=", endDate));
         const salesSnapshot = await getDocs(salesQuery);
         salesSnapshot.forEach(doc => {
@@ -465,7 +437,6 @@ async function generateArusKasReport() {
             });
         });
         
-        // 2. Kas Masuk dari Pendapatan Lain-lain (Sekarang mengambil dari path yang benar)
         const incomesQuery = query(getOtherIncomesCollectionRef(), where("date", ">=", startDate), where("date", "<=", endDate));
         const incomesSnapshot = await getDocs(incomesQuery);
         incomesSnapshot.forEach(doc => {
@@ -478,7 +449,6 @@ async function generateArusKasReport() {
             });
         });
 
-        // 3. Kas Keluar dari Biaya Operasional
         const expensesQuery = query(getExpensesCollectionRef(), where("date", ">=", startDate), where("date", "<=", endDate));
         const expensesSnapshot = await getDocs(expensesQuery);
         expensesSnapshot.forEach(doc => {
@@ -491,7 +461,6 @@ async function generateArusKasReport() {
             });
         });
 
-        // 4. Kas Keluar/Masuk dari Pelunasan Utang/Piutang
         const accountsQuery = query(getAccountsCollectionRef(), where("status", "==", "lunas"), where("paidDate", ">=", startDate), where("paidDate", "<=", endDate));
         const accountsSnapshot = await getDocs(accountsQuery);
         accountsSnapshot.forEach(doc => {

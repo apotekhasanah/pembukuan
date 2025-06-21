@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-// === PERUBAHAN DI SINI: Tambahkan 'writeBatch' ke dalam impor ===
-import { getFirestore, collection, doc, serverTimestamp, runTransaction, setLogLevel, addDoc, updateDoc, deleteDoc, onSnapshot, query, where, getDocs, Timestamp, getDoc, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"; 
+// PENAMBAHAN: Impor 'setDoc' dan 'writeBatch' untuk digunakan di modul lain
+import { getFirestore, collection, doc, serverTimestamp, runTransaction, setLogLevel, addDoc, updateDoc, deleteDoc, onSnapshot, query, where, getDocs, Timestamp, getDoc, writeBatch, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"; 
 import { firebaseConfig, APOTEK_ID } from './firebase-config.js'; 
 
 const app = initializeApp(firebaseConfig); 
@@ -43,5 +43,5 @@ export function getUsersCollectionRef() {
     return collection(db, "users");
 }
 
-// === PERUBAHAN DI SINI: Tambahkan 'writeBatch' ke dalam ekspor ===
-export { collection, doc, serverTimestamp, runTransaction, addDoc, updateDoc, deleteDoc, onSnapshot, query, where, getDocs, Timestamp, getDoc, writeBatch }; 
+// Ekspor semua fungsi yang dibutuhkan agar bisa diimpor di modul lain
+export { collection, doc, serverTimestamp, runTransaction, addDoc, updateDoc, deleteDoc, onSnapshot, query, where, getDocs, Timestamp, getDoc, writeBatch, setDoc };
