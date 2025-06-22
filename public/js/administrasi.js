@@ -1,8 +1,8 @@
 /**
  * =================================================================
- * File: public/js/manajemen_pengguna.js (DENGAN FITUR REGISTRASI)
+ * File: public/js/administrasi.js (DENGAN FITUR REGISTRASI)
  * =================================================================
- * Deskripsi: Modul ini menangani semua logika untuk halaman Manajemen Pengguna.
+ * Deskripsi: Modul ini menangani semua logika untuk halaman Administrasi.
  * - Menampilkan daftar pengguna.
  * - Mengedit peran dan status pengguna.
  * - BARU: Mendaftarkan pengguna baru langsung oleh Superadmin.
@@ -144,7 +144,7 @@ async function handleRegistration(e) {
 }
 
 
-// --- Fungsi Manajemen Pengguna Eksisting ---
+// --- Fungsi Administrasi Eksisting ---
 
 function renderUsersTable(users) {
     const tableBody = document.getElementById('usersTableBody');

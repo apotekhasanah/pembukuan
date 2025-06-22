@@ -28,13 +28,13 @@ function setupNavbar() {
 
     const navLinksDesktop = mainNav.querySelectorAll('#navLinks a.nav-link');
     const navLinksMobile = mainNav.querySelectorAll('#mobileMenu a.nav-link-mobile');
-    const currentPath = window.location.pathname.split("/").pop() || 'dashboard.html';
+    const currentPath = window.location.pathname.split("/").pop() || 'kasir.html';
 
     function setActiveLink(links, activeClass) {
         links.forEach(link => {
             const linkHref = link.getAttribute('href');
             if (!linkHref) return;
-            const linkPath = linkHref.split("/").pop() || 'dashboard.html';
+            const linkPath = linkHref.split("/").pop() || 'kasir.html';
             
             if (linkPath === currentPath) {
                 link.classList.add(activeClass);

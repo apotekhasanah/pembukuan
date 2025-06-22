@@ -1,6 +1,6 @@
 /**
  * =================================================================
- * File: public/js/inventory.js (VALIDASI IMPOR DITINGKATKAN)
+ * File: public/js/inventory-logic.js (VALIDASI IMPOR DITINGKATKAN)
  * =================================================================
  * Deskripsi: Modul ini telah diperbarui dengan validasi impor yang lebih
  * kuat. Sekarang ia akan memeriksa duplikasi nama produk di dalam
@@ -187,7 +187,7 @@ async function batchWriteToFirestore(inventoryData) {
     await batch.commit();
 }
 
-// ... Sisa file inventory.js tidak ada perubahan ...
+// ... Sisa file inventory-logic.js tidak ada perubahan ...
 // --- Fungsi Internal Modul ---
 function notifyInventorySubscribers(updatedInventory) {
     inventoryCache = updatedInventory;
@@ -217,7 +217,7 @@ function listenForInventoryUpdates(userRole) {
             updateInventorySortIndicators(document.querySelectorAll('#inventoryTableContainer .sortable-header'));
         }
     }, (error) => {
-        console.error("inventory.js: Error di onSnapshot:", error);
+        console.error("inventory-logic.js: Error di onSnapshot:", error);
         if (inventoryTableBody) inventoryTableBody.innerHTML = `<tr><td colspan="${colsForPlaceholder}" class="text-center py-4 text-red-500">Gagal memuat data.</td></tr>`;
     });
 }
@@ -415,7 +415,7 @@ function handleEditRequest(itemId) {
             displayMessage("Gagal menemukan item untuk diedit. Coba refresh halaman.", "error");
         }
     } else {
-        window.location.href = `status_inventaris.html?editId=${itemId}`;
+        window.location.href = `inventaris.html?editId=${itemId}`;
     }
 }
 

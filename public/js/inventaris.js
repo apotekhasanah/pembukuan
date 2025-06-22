@@ -4,7 +4,7 @@ import {
     subscribeToInventoryUpdates, 
     initializeInventoryManagement,
     handleInventoryImport
-} from './inventory.js';
+} from './inventory-logic.js';
 import { getInventoryCollectionRef, doc, deleteDoc } from './firestore_utils.js';
 
 let lastReceivedInventoryData = [];

@@ -1,12 +1,12 @@
 <!-- 
 =============================================================================
 File: public/_nav.html (Komponen Navigasi Terpusat)
-Revisi: Menambahkan link Manajemen Pengguna hanya untuk Superadmin.
+Revisi: Menambahkan link Administrasi hanya untuk Superadmin.
 =============================================================================
 -->
 <nav id="mainNav" class="bg-green-700 text-white p-4 shadow-md">
     <div class="container mx-auto flex justify-between items-center">
-        <a href="dashboard.html" class="text-xl font-bold">Apotek Hasanah Rahayu</a>
+        <a href="kasir.html" class="text-xl font-bold">Apotek Hasanah Rahayu</a>
         <div class="md:hidden">
             <button id="hamburgerButton" class="text-white focus:outline-none">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -15,24 +15,24 @@ Revisi: Menambahkan link Manajemen Pengguna hanya untuk Superadmin.
             </button>
         </div>
         <div id="navLinks" class="hidden md:flex md:items-center space-x-1">
-            <a href="dashboard.html" class="nav-link px-3 py-2 rounded hover:bg-green-600">Kasir</a>
-            <a href="laporan.html" class="nav-link px-3 py-2 rounded hover:bg-green-600 admin-only-nav">Penjualan</a>
-            <a href="keuangan.html" class="nav-link px-3 py-2 rounded hover:bg-green-600 admin-only-nav">Pembukuan</a>
-            <a href="status_inventaris.html" class="nav-link px-3 py-2 rounded hover:bg-green-600 admin-only-nav">Inventaris</a>
+            <a href="kasir.html" class="nav-link px-3 py-2 rounded hover:bg-green-600">Kasir</a>
+            <a href="penjualan.html" class="nav-link px-3 py-2 rounded hover:bg-green-600 admin-only-nav">Penjualan</a>
+            <a href="pembukuan.html" class="nav-link px-3 py-2 rounded hover:bg-green-600 admin-only-nav">Pembukuan</a>
+            <a href="inventaris.html" class="nav-link px-3 py-2 rounded hover:bg-green-600 admin-only-nav">Inventaris</a>
             <a href="manajemen.html" class="nav-link px-3 py-2 rounded hover:bg-green-600 admin-only-nav">Manajemen</a>
             <!-- LINK BARU: HANYA UNTUK SUPERADMIN -->
-            <a href="manajemen_pengguna.html" class="nav-link px-3 py-2 rounded hover:bg-green-600 superadmin-only-nav">Manajemen Pengguna</a>
+            <a href="administrasi.html" class="nav-link px-3 py-2 rounded hover:bg-green-600 superadmin-only-nav">Administrasi</a>
             <button id="logoutButton" class="px-3 py-2 rounded hover:bg-red-600 bg-red-500">Logout</button>
         </div>
     </div>
     <div id="mobileMenu" class="hidden md:hidden mt-2">
-        <a href="dashboard.html" class="nav-link-mobile block px-3 py-2 rounded hover:bg-green-600">Kasir</a>
-        <a href="laporan.html" class="nav-link-mobile block px-3 py-2 rounded hover:bg-green-600 admin-only-nav">Penjualan</a>
-        <a href="keuangan.html" class="nav-link-mobile block px-3 py-2 rounded hover:bg-green-600 admin-only-nav">Pembukuan</a>
-        <a href="status_inventaris.html" class="nav-link-mobile block px-3 py-2 rounded hover:bg-green-600 admin-only-nav">Inventaris</a>
+        <a href="kasir.html" class="nav-link-mobile block px-3 py-2 rounded hover:bg-green-600">Kasir</a>
+        <a href="penjualan.html" class="nav-link-mobile block px-3 py-2 rounded hover:bg-green-600 admin-only-nav">Penjualan</a>
+        <a href="pembukuan.html" class="nav-link-mobile block px-3 py-2 rounded hover:bg-green-600 admin-only-nav">Pembukuan</a>
+        <a href="inventaris.html" class="nav-link-mobile block px-3 py-2 rounded hover:bg-green-600 admin-only-nav">Inventaris</a>
         <a href="manajemen.html" class="nav-link-mobile block px-3 py-2 rounded hover:bg-green-600 admin-only-nav">Manajemen</a>
         <!-- LINK BARU: HANYA UNTUK SUPERADMIN -->
-        <a href="manajemen_pengguna.html" class="nav-link-mobile block px-3 py-2 rounded hover:bg-green-600 superadmin-only-nav">Manajemen Pengguna</a>
+        <a href="administrasi.html" class="nav-link-mobile block px-3 py-2 rounded hover:bg-green-600 superadmin-only-nav">Administrasi</a>
         <button id="logoutButtonMobile" class="w-full text-left block px-3 py-2 rounded hover:bg-red-600 bg-red-500 mt-1">Logout</button>
     </div>
 </nav>

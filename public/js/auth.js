@@ -86,7 +86,7 @@ onAuthStateChanged(auth, async (user) => {
         console.log("AUTH.JS: Pengguna terautentikasi:", user.email, "Peran:", currentUserRole);
 
         if (isLoginPage) {
-            window.location.href = "dashboard.html";
+            window.location.href = "kasir.html";
             return; 
         }
         

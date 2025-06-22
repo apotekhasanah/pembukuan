@@ -1,6 +1,6 @@
 <!-- 
 =============================================================================
-File: public/status_inventaris.html (Halaman Status Inventaris) - ADMIN ONLY
+File: public/inventaris.html (Halaman Inventaris) - ADMIN ONLY
 Revisi: Mengembalikan layout dan memperbaiki alur impor
 =============================================================================
 -->
@@ -9,7 +9,7 @@ Revisi: Mengembalikan layout dan memperbaiki alur impor
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Status Inventaris - Apotek Hasanah Rahayu</title>
+    <title>Inventaris - Apotek Hasanah Rahayu</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
@@ -20,7 +20,7 @@ Revisi: Mengembalikan layout dan memperbaiki alur impor
 <body class="antialiased text-gray-800 bg-gray-100">
     <div id="loadingOverlay">
         <div class="spinner"></div>
-        <p class="mt-4 text-lg font-semibold text-green-700">Memuat Status Inventaris...</p>
+        <p class="mt-4 text-lg font-semibold text-green-700">Memuat Inventaris...</p>
         <p class="text-sm text-gray-600">Mohon tunggu sebentar.</p>
     </div>
 
@@ -41,7 +41,7 @@ Revisi: Mengembalikan layout dan memperbaiki alur impor
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
-            <p class="text-gray-600 mt-2">Memuat status inventaris...</p>
+            <p class="text-gray-600 mt-2">Memuat Inventaris...</p>
         </div>
 
         <!-- Ringkasan Inventaris -->
@@ -254,7 +254,7 @@ Revisi: Mengembalikan layout dan memperbaiki alur impor
     <script type="module" src="js/auth.js"></script>
     <script type="module" src="js/firestore_utils.js"></script>
     <script type="module" src="js/kasir.js"></script>
-    <script type="module" src="js/status_inventaris.js"></script>
+    <script type="module" src="js/inventaris.js"></script>
     <script type="module" src="js/loading.js"></script>
 </body>
 </html>

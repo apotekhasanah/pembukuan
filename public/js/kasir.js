@@ -11,7 +11,7 @@
 
 import { displayMessage, showLoading, formatRupiah, formatDate } from './main.js';
 import { getCurrentUserId, getCurrentUserRole, getFirebaseAuth, subscribeToAuthReady } from './auth.js';
-import { subscribeToInventoryUpdates, getInventoryCache, initializeInventoryManagement } from './inventory.js';
+import { subscribeToInventoryUpdates, getInventoryCache, initializeInventoryManagement } from './inventory-logic.js';
 import { getSalesCollectionRef, getInventoryCollectionRef, getDb } from './firestore_utils.js';
 import { doc, runTransaction, addDoc, query, orderBy, limit, onSnapshot, updateDoc, deleteDoc } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 
@@ -24,7 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
     subscribeToAuthReady(({ userId, role }) => {
         if (userId) {
             const currentPage = window.location.pathname.split("/").pop();
-            if (currentPage === "dashboard.html" || currentPage === "") {
+            if (currentPage === "kasir.html" || currentPage === "") {
                 initializeKasirPage(role);
             }
         } else {
