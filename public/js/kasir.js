@@ -1,11 +1,12 @@
 /**
  * =================================================================
- * File: public/js/kasir.js (DIPERBARUI DAN DIPERBAIKI)
+ * File: public/js/kasir.js (VALIDASI DAN PERBAIKAN CETAK STRUK)
  * =================================================================
- * Deskripsi: Modul ini telah diperbaiki untuk mengatasi bug ReferenceError.
- * Strukturnya diubah dengan menempatkan semua fungsi terkait di dalam
- * lingkup initializeKasirPage untuk memastikan akses variabel dan
- * DOM yang konsisten.
+ * Deskripsi: Modul ini telah divalidasi dan diperbaiki.
+ * - Bug pada fungsi cetak struk telah diperbaiki dengan implementasi penuh.
+ * - Format struk disesuaikan untuk printer thermal. Ukuran kertas kini fleksibel.
+ * - Proses cetak kini otomatis muncul setelah transaksi berhasil.
+ * - Menggunakan iframe tersembunyi untuk proses cetak yang lebih andal.
  */
 
 import { displayMessage, showLoading, formatRupiah, formatDate } from './main.js';
@@ -53,11 +54,6 @@ function initializeKasirPage(userRole) {
     // --- State Lokal untuk Halaman Kasir ---
     let currentSaleItems = [];
     const auth = getFirebaseAuth();
-
-    // =================================================================
-    // SEMUA FUNGSI HELPER DIPINDAHKAN KE DALAM LINGKUP INI
-    // UNTUK MEMPERBAIKI BUG REFERENCEERROR
-    // =================================================================
 
     /**
      * Merender tabel item yang sedang dalam transaksi.
@@ -138,7 +134,7 @@ function initializeKasirPage(userRole) {
             else displayMessage(`Stok ${product.name} tidak mencukupi.`, 'error');
         } else {
             if (product.stock > 0) {
-                currentSaleItems.push({ ...product, quantity: 1, buyPriceAtSale: product.buyPrice });
+                currentSaleItems.push({ ...product, quantity: 1, buyPriceAtSale: product.buyPrice, priceAtSale: product.sellPrice });
             }
             else displayMessage(`Stok ${product.name} habis.`, 'error');
         }
@@ -188,14 +184,15 @@ function initializeKasirPage(userRole) {
         const inventoryCollectionRef = getInventoryCollectionRef();
 
         const patientNameValue = patientNameInput ? patientNameInput.value.trim() : null;
+        const totalAmount = currentSaleItems.reduce((sum, item) => sum + (item.quantity * item.priceAtSale), 0);
         const saleData = {
             items: currentSaleItems.map(item => ({
                 productId: item.id, name: item.name, quantity: item.quantity,
-                priceAtSale: item.sellPrice,
-                buyPriceAtSale: item.buyPriceAtSale || item.buyPrice,
-                subtotal: item.quantity * item.sellPrice
+                priceAtSale: item.priceAtSale,
+                buyPriceAtSale: item.buyPriceAtSale,
+                subtotal: item.quantity * item.priceAtSale
             })),
-            totalAmount: currentSaleItems.reduce((sum, item) => sum + (item.quantity * item.sellPrice), 0),
+            totalAmount: totalAmount,
             saleDate: new Date(),
             soldBy: userId,
             kasirEmail: auth.currentUser ? auth.currentUser.email : 'N/A',
@@ -214,12 +211,14 @@ function initializeKasirPage(userRole) {
                     if (newStock < 0) throw new Error(`Stok ${item.name} tidak cukup.`);
                     transaction.update(productDocRef, { stock: newStock, lastUpdated: new Date() });
                 }
+                // Firestore secara otomatis akan mengkonversi objek Date() ke Timestamp
                 const saleDocRef = doc(salesCollectionRef);
                 transaction.set(saleDocRef, saleData);
             });
 
             displayMessage('Penjualan berhasil! Stok telah diperbarui.', 'success');
-            generateAndPrintReceipt(saleData);
+            // Menampilkan struk di modal dan langsung memicu proses cetak
+            showAndPrintReceipt(saleData, true); 
             currentSaleItems = []; // Kosongkan array
             if(patientNameInput) patientNameInput.value = '';
             renderCurrentSale();
@@ -230,8 +229,8 @@ function initializeKasirPage(userRole) {
             showLoading(false, 'saleLoadingIndicator');
         }
     }
-
-    // --- Semua fungsi untuk riwayat penjualan ---
+    
+    // --- Bagian Riwayat Penjualan ---
     
     function renderSalesHistoryTable(salesData, role) {
         if (!salesHistoryTableBody) return;
@@ -256,9 +255,10 @@ function initializeKasirPage(userRole) {
             actionsCell.className = 'space-x-2 whitespace-nowrap';
             const viewReceiptButton = document.createElement('button');
             viewReceiptButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 7.5l3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0021 18V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v12a2.25 2.25 0 002.25 2.25z" /></svg>`;
-            viewReceiptButton.title = "Lihat Nota";
+            viewReceiptButton.title = "Lihat Struk";
             viewReceiptButton.classList.add('bg-blue-500', 'hover:bg-blue-600', 'text-white', 'p-1.5', 'rounded-md', 'text-sm');
-            viewReceiptButton.onclick = () => generateAndPrintReceipt(sale);
+            // Menampilkan struk di modal tanpa langsung mencetak
+            viewReceiptButton.onclick = () => showAndPrintReceipt(sale, false);
             actionsCell.appendChild(viewReceiptButton);
             
             if (role === 'superadmin') {
@@ -307,36 +307,138 @@ function initializeKasirPage(userRole) {
         });
     }
 
-    function generateAndPrintReceipt(saleData) {
+    // ========================================================
+    // FUNGSI BARU UNTUK MENCETAK STRUK THERMAL
+    // ========================================================
+    /**
+     * Menyiapkan dan mencetak konten struk ke printer.
+     * @param {string} receiptHtml - Konten HTML dari struk.
+     */
+    function printContent(receiptHtml) {
+        // Buat iframe tersembunyi
+        const iframe = document.createElement('iframe');
+        iframe.style.position = 'absolute';
+        iframe.style.width = '0';
+        iframe.style.height = '0';
+        iframe.style.border = '0';
+        document.body.appendChild(iframe);
+
+        // Tulis konten HTML ke dalam iframe
+        const doc = iframe.contentWindow.document;
+        doc.open();
+        doc.write(receiptHtml);
+        doc.close();
+
+        // Tunggu iframe selesai memuat lalu cetak
+        iframe.onload = function() {
+            iframe.contentWindow.focus();
+            iframe.contentWindow.print();
+            // Hapus iframe setelah beberapa saat
+            setTimeout(() => {
+                document.body.removeChild(iframe);
+            }, 1000);
+        };
+    }
+
+    /**
+     * Membuat format HTML untuk struk thermal dan menampilkannya.
+     * @param {object} saleData - Objek data penjualan.
+     * @param {boolean} autoPrint - Jika true, dialog cetak akan otomatis muncul.
+     */
+    function showAndPrintReceipt(saleData, autoPrint = false) {
         const receiptModal = document.getElementById('receiptModal');
-        const receiptContent = document.getElementById('receiptContent');
+        const receiptContentEl = document.getElementById('receiptContent');
         const printReceiptButton = document.getElementById('printReceiptButton');
         const closeReceiptButton = document.getElementById('closeReceiptButton');
-        if (!receiptModal || !receiptContent || !printReceiptButton || !closeReceiptButton) return;
+        if (!receiptModal || !receiptContentEl || !printReceiptButton || !closeReceiptButton) return;
         
+        const receiptDate = (saleData.saleDate instanceof Date) 
+            ? saleData.saleDate.toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })
+            : formatDate(saleData.saleDate); // Fallback jika formatnya Timestamp
+
+        // Membuat baris item dengan subtotal rata kanan
         let itemsHtml = saleData.items.map(item => `
-            <tr><td class="py-1 px-2">${item.name}</td><td class="py-1 px-2 text-center">${item.quantity}</td>
-            <td class="py-1 px-2 text-right">${formatRupiah(item.priceAtSale)}</td><td class="py-1 px-2 text-right">${formatRupiah(item.subtotal)}</td></tr>`).join('');
+            <div>${item.name}</div>
+            <div style="display: flex; justify-content: space-between;">
+                <span>&nbsp;${item.quantity} x ${item.priceAtSale.toLocaleString('id-ID')}</span>
+                <span>${item.subtotal.toLocaleString('id-ID')}</span>
+            </div>
+        `).join('');
+
+        // Membuat konten HTML lengkap untuk struk
+        const thermalHtml = `
+            <div style="text-align: center; margin-bottom: 8px;">
+                <strong style="font-size: 1.1em;">Apotek Hasanah Rahayu</strong><br>
+                Kp. Babakan, RT 02 RW 04, Curug Bitung<br>
+                Nanggung, Kab. Bogor, 16650<br>
+                HP: 081717150696
+            </div>
+            <hr>
+            <div>Tanggal: ${receiptDate}</div>
+            <div>No. Nota: ${saleData.receiptId}</div>
+            <div>Kasir: ${saleData.kasirEmail}</div>
+            <div>Pasien: ${saleData.patientName || 'Umum'}</div>
+            <hr>
+            ${itemsHtml}
+            <hr>
+            <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 1.1em;">
+                <span>TOTAL</span>
+                <span>${formatRupiah(saleData.totalAmount)}</span>
+            </div>
+            <hr>
+            <div style="text-align: center; margin-top: 8px;">Terima kasih atas kunjungan Anda!</div>
+        `;
         
-        const receiptDate = formatDate(saleData.saleDate);
-        
-        receiptContent.innerHTML = `
-            <div class="text-center mb-4"><h3 class="text-xl font-semibold">Apotek Hasanah Rahayu</h3>
-            <p class="text-sm">Kp. Babakan, RT 02 RW 04, Curug Bitung</p><p class="text-sm">Nanggung, Kab. Bogor, 16650</p><p class="text-sm">HP: 081717150696</p></div>
-            <p class="text-sm mb-1">Tanggal: ${receiptDate}</p>
-            <p class="text-sm mb-1">No. Nota: ${saleData.receiptId}</p> 
-            <p class="text-sm mb-1">Kasir: ${saleData.kasirEmail}</p>
-            <p class="text-sm mb-2">Pasien: ${saleData.patientName || 'Umum'}</p> 
-            <hr class="my-2 border-dashed">
-            <table class="w-full text-sm"><thead><tr><th class="py-1 px-2 text-left">Produk</th><th class="py-1 px-2 text-center">Qty</th>
-            <th class="py-1 px-2 text-right">Harga</th><th class="py-1 px-2 text-right">Subtotal</th></tr></thead><tbody>${itemsHtml}</tbody></table>
-            <hr class="my-2 border-dashed">
-            <div class="text-right font-semibold text-base mt-2">Total: ${formatRupiah(saleData.totalAmount)}</div>
-            <p class="text-center text-xs mt-4">Terima kasih atas kunjungan Anda!</p>`;
+        // ========================================================
+        // PERUBAHAN DI SINI: CSS untuk ukuran kertas fleksibel
+        // ========================================================
+        const fullHtmlForPrint = `
+            <html>
+                <head>
+                    <title>Struk Pembelian</title>
+                    <style>
+                        @media print {
+                            @page { 
+                                size: auto; /* Ukuran kertas akan otomatis mengikuti pengaturan printer */
+                                margin: 0; 
+                            }
+                            body { 
+                                margin: 4mm; /* Beri sedikit margin pada konten yang dicetak */
+                                color-adjust: exact; 
+                                -webkit-print-color-adjust: exact; 
+                            }
+                        }
+                        body {
+                            font-family: 'Courier New', Courier, monospace;
+                            font-size: 10pt;
+                            line-height: 1.4;
+                            /* Hapus 'width' agar fleksibel */
+                        }
+                        hr { border: 0; border-top: 1px dashed black; margin: 8px 0; }
+                    </style>
+                </head>
+                <body>
+                    ${thermalHtml}
+                </body>
+            </html>
+        `;
+
+        // Tampilkan pratinjau di modal
+        receiptContentEl.innerHTML = thermalHtml;
         receiptModal.classList.remove('hidden');
-        printReceiptButton.onclick = () => { /* ... (print logic) ... */ };
+
+        // Fungsi untuk tombol cetak ulang
+        printReceiptButton.onclick = () => printContent(fullHtmlForPrint);
+
+        // Fungsi untuk tombol tutup
         closeReceiptButton.onclick = () => receiptModal.classList.add('hidden');
+
+        // Jika autoPrint true, langsung cetak
+        if (autoPrint) {
+            printContent(fullHtmlForPrint);
+        }
     }
+
 
     // --- Semua fungsi untuk Superadmin ---
 
@@ -345,6 +447,7 @@ function initializeKasirPage(userRole) {
         if (!modal) return;
         document.getElementById('editSaleId').value = sale.id;
         document.getElementById('editPatientName').value = sale.patientName || '';
+        // Konversi Timestamp Firestore ke Date jika perlu
         const saleDate = sale.saleDate.toDate ? sale.saleDate.toDate() : new Date(sale.saleDate);
         document.getElementById('editSaleDate').value = saleDate.toISOString().split('T')[0];
         modal.classList.remove('hidden');

@@ -28,24 +28,46 @@
         <div id="messageContainer" class="hidden p-3 rounded-md text-sm mb-4"></div>
         
         <!-- ======================================================== -->
-        <!-- BAGIAN BARU: Instruksi untuk Menambah Pengguna -->
+        <!-- BAGIAN BARU: Form untuk Mendaftarkan Pengguna Baru -->
         <!-- ======================================================== -->
         <div class="bg-white p-6 rounded-lg shadow-lg mb-8">
-            <h2 class="text-2xl font-semibold text-gray-700 mb-4">Cara Menambah Pengguna Baru</h2>
-            <div class="space-y-3 text-gray-600">
-                <p>Untuk alasan keamanan, penambahan akun pengguna (pembuatan email dan password) harus dilakukan melalui Firebase Console yang aman.</p>
-                <ol class="list-decimal list-inside space-y-2 pl-4">
-                    <li>Buka <a href="https://console.firebase.google.com/" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline font-medium">Firebase Console</a> proyek ini.</li>
-                    <li>Pergi ke bagian <strong>Authentication</strong>, lalu klik tab <strong>Users</strong>.</li>
-                    <li>Klik tombol <strong>"Add user"</strong> dan masukkan email serta password untuk pengguna baru.</li>
-                    <li>Setelah pengguna dibuat, minta mereka untuk login ke aplikasi ini.</li>
-                    <li>Akun mereka akan otomatis muncul di tabel di bawah dengan status "Nonaktif". Gunakan tombol <strong>"Edit"</strong> untuk mengubah peran dan mengaktifkan akun mereka.</li>
-                </ol>
-            </div>
+            <h2 class="text-2xl font-semibold text-gray-700 mb-4">Daftarkan Pengguna Baru</h2>
+            <form id="registerUserForm" class="space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="registerEmail" class="block text-sm font-medium text-gray-700">Email Pengguna</label>
+                        <input type="email" id="registerEmail" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500">
+                    </div>
+                    <div>
+                        <label for="registerRole" class="block text-sm font-medium text-gray-700">Peran Awal</label>
+                        <select id="registerRole" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500">
+                            <option value="kasir">Kasir</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </div>
+                </div>
+                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="registerPassword" class="block text-sm font-medium text-gray-700">Password</label>
+                        <input type="password" id="registerPassword" required placeholder="Minimal 6 karakter" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500">
+                    </div>
+                     <div>
+                        <label for="confirmPassword" class="block text-sm font-medium text-gray-700">Konfirmasi Password</label>
+                        <input type="password" id="confirmPassword" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500">
+                    </div>
+                </div>
+                <div class="flex items-center justify-end space-x-4 pt-2">
+                    <div id="registerLoadingIndicator" class="hidden">
+                        <svg class="animate-spin h-5 w-5 text-green-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    </div>
+                    <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-md shadow-md">Daftarkan Akun</button>
+                </div>
+                 <p class="text-xs text-gray-500 mt-2">Akun yang baru didaftarkan akan berstatus <span class="font-semibold">"Aktif"</span> secara otomatis.</p>
+            </form>
         </div>
 
         <div class="bg-white p-6 rounded-lg shadow-lg">
-            <h2 class="text-2xl font-semibold text-gray-700 mb-4">Daftar Pengguna</h2>
+            <h2 class="text-2xl font-semibold text-gray-700 mb-4">Daftar Pengguna Aktif & Nonaktif</h2>
             <div id="usersTableContainer" class="table-container border border-gray-200 rounded-md">
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-100">

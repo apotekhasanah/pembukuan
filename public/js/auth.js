@@ -5,7 +5,6 @@ import {
     signOut, 
     onAuthStateChanged 
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-// PENAMBAHAN: Impor 'setDoc' untuk membuat dokumen pengguna baru
 import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { firebaseConfig, APOTEK_ID } from './firebase-config.js'; 
 import { displayMessage, showLoading, updateUserInterfaceForRole } from './main.js'; 
@@ -34,40 +33,28 @@ function notifyAuthSubscribers() {
     authSubscribers.length = 0;
 }
 
-/**
- * Mengambil metadata pengguna. Jika dokumen pengguna tidak ada,
- * maka akan dibuatkan secara otomatis dengan nilai default.
- * @param {User} user - Objek pengguna dari Firebase Authentication.
- * @returns {Promise<Object|null>} Objek berisi peran dan status, atau null jika gagal.
- */
 async function fetchAndProvisionUser(user) {
     if (!user) return null;
     const userDocRef = doc(db, "users", user.uid);
     try {
         const userDocSnap = await getDoc(userDocRef);
         if (userDocSnap.exists()) {
-            // Pengguna sudah ada, kembalikan datanya
             const data = userDocSnap.data();
             return {
                 role: data.role || 'kasir',
                 status: data.status || 'nonaktif'
             };
         } else {
-            // =================================================================
-            // FITUR BARU: Pembuatan Profil Pengguna Otomatis
-            // =================================================================
+            // Logika ini tetap penting jika Superadmin mendaftarkan pengguna via Firebase Console
             console.log(`Pengguna baru terdeteksi: ${user.email}. Membuat profil default...`);
             const defaultUserData = {
                 email: user.email,
-                role: 'kasir', // Peran default untuk pengguna baru
-                status: 'nonaktif', // Status default, harus diaktifkan oleh Superadmin
-                apotekId: APOTEK_ID, // ID Apotek dari konfigurasi
+                role: 'kasir',
+                status: 'nonaktif',
+                apotekId: APOTEK_ID, 
                 createdAt: new Date()
             };
-            // Buat dokumen baru di Firestore untuk pengguna ini
             await setDoc(userDocRef, defaultUserData);
-            console.log(`Profil untuk ${user.email} berhasil dibuat.`);
-            // Kembalikan data default agar bisa diproses lebih lanjut
             return {
                 role: defaultUserData.role,
                 status: defaultUserData.status
@@ -84,10 +71,8 @@ onAuthStateChanged(auth, async (user) => {
     const isLoginPage = currentPage === "index.html" || currentPage === "";
     
     if (user) {
-        // Gunakan fungsi baru yang bisa membuat profil pengguna
         const metadata = await fetchAndProvisionUser(user);
 
-        // Cek status pengguna. Jika nonaktif, logout paksa.
         if (!metadata || metadata.status !== 'aktif') {
             if (!isLoginPage) {
                 displayMessage("Akun Anda nonaktif atau menunggu persetujuan. Hubungi Superadmin.", "error");

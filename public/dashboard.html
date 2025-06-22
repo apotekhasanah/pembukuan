@@ -2,8 +2,8 @@
 =============================================================================
 File: public/dashboard.html (Halaman Kasir & Riwayat Nota)
 Revisi: 
-- Tabel inventaris penuh telah dihapus untuk membuat halaman lebih ringan.
-- Menambahkan tautan ke halaman "Status Inventaris" untuk melihat daftar lengkap.
+- Modal struk disederhanakan dan disesuaikan untuk pratinjau cetak thermal.
+- Teks pada tombol dan judul modal diperbarui untuk kejelasan.
 =============================================================================
 -->
 <!DOCTYPE html>
@@ -80,14 +80,13 @@ Revisi:
                             </svg>
                         </div>
                         <button id="finalizeSaleButton" disabled class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-md shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition duration-150 ease-in-out">
-                            Selesaikan Penjualan & Cetak Nota
+                            Selesaikan & Cetak Struk
                         </button>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Kotak Informasi & Navigasi -->
         <div class="p-4 mb-8 bg-gray-50 border-l-4 border-gray-300 text-gray-600 rounded-r-lg">
             <p class="text-sm">Untuk melihat daftar lengkap, mengedit, atau menambah produk, silakan kunjungi halaman <a href="status_inventaris.html" class="text-green-600 hover:underline font-medium">Status Inventaris</a>.</p>
         </div>
@@ -136,18 +135,24 @@ Revisi:
         </div>
     </div>
 
-    <!-- Modal Cetak Nota -->
+    <!-- ======================================================== -->
+    <!-- PERUBAHAN: Modal Struk disederhanakan untuk Thermal Print -->
+    <!-- ======================================================== -->
     <div id="receiptModal" class="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
-        <div class="bg-white p-6 md:p-8 rounded-lg shadow-2xl w-full max-w-md md:max-w-lg relative">
+        <div class="bg-white p-6 rounded-lg shadow-2xl w-full max-w-sm relative">
+            <h3 class="text-lg font-semibold text-center mb-4">Pratinjau Struk</h3>
             <button id="closeReceiptButton" class="absolute top-3 right-3 text-gray-500 hover:text-gray-700">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-7 h-7">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
             </button>
-            <div id="receiptContent" class="text-sm"></div>
+            <!-- Konten struk akan meniru format thermal -->
+            <div id="receiptContent" class="text-sm bg-gray-50 p-3 overflow-y-auto max-h-96" style="font-family: monospace;">
+                <!-- Konten diisi oleh JavaScript -->
+            </div>
             <div class="mt-6 text-center">
                 <button id="printReceiptButton" class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-6 rounded-md shadow-md">
-                    Cetak Nota
+                    Cetak Ulang Struk
                 </button>
             </div>
         </div>
