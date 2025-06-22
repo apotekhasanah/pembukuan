@@ -1,11 +1,25 @@
+/**
+ * =================================================================
+ * File: public/js/inventaris.js (REVISI PENGHUBUNG PAGINASI)
+ * =================================================================
+ * Deskripsi: Modul ini disesuaikan untuk bekerja dengan sistem paginasi baru.
+ * - Menambahkan event listener untuk tombol-tombol paginasi baru.
+ * - Mengubah nama pemanggilan dari 'subscribeToInventoryUpdates' menjadi 'subscribeToInventoryStatusUpdates'.
+ * - Logika rendering tabel utama kini sepenuhnya dikendalikan oleh inventory-logic.js.
+ */
+
 import { displayMessage, showLoading, formatDate, updateUserInterfaceForRole } from './main.js';
 import { getCurrentUserRole, subscribeToAuthReady } from './auth.js';
 import { 
-    subscribeToInventoryUpdates, 
+    // Ganti nama fungsi subscribe
+    subscribeToInventoryStatusUpdates, 
     initializeInventoryManagement,
-    handleInventoryImport
+    handleInventoryImport,
+    // Impor fungsi navigasi halaman baru
+    loadNextInventoryPage,
+    loadPrevInventoryPage
 } from './inventory-logic.js';
-import { getInventoryCollectionRef, doc, deleteDoc } from './firestore_utils.js';
+import { doc, deleteDoc, getInventoryCollectionRef } from './firestore_utils.js';
 
 let lastReceivedInventoryData = [];
 
@@ -13,13 +27,11 @@ document.addEventListener('DOMContentLoaded', () => {
     subscribeToAuthReady(({ userId, role }) => {
         const loadingGlobal = document.getElementById('loadingOverlay');
         if (loadingGlobal) loadingGlobal.classList.add('hidden');
-
-        // =================================================================
-        // PERBAIKAN DI SINI: Izinkan akses untuk 'admin' atau 'superadmin'
-        // =================================================================
+        
         const hasAccess = role === 'admin' || role === 'superadmin';
 
         if (userId && hasAccess) {
+            // Panggil fungsi inisialisasi utama yang sudah termasuk paginasi
             initializeStatusInventarisPage(role);
             document.getElementById('mainContent')?.classList.remove('hidden');
             document.getElementById('accessDeniedMessage')?.classList.add('hidden');
@@ -33,12 +45,20 @@ document.addEventListener('DOMContentLoaded', () => {
 function initializeStatusInventarisPage(userRole) {
     const importFileInput = document.getElementById('importFile');
     const processImportButton = document.getElementById('processImportButton');
+    const minStockThresholdInput = document.getElementById('minStockThreshold');
+    const expiryWarningDaysInput = document.getElementById('expiryWarningDays');
+    
+    // --- PENAMBAHAN: Listener untuk tombol paginasi ---
+    const prevBtn = document.getElementById('inventoryPrevPageButton');
+    const nextBtn = document.getElementById('inventoryNextPageButton');
+    if (prevBtn) prevBtn.addEventListener('click', () => loadPrevInventoryPage(userRole));
+    if (nextBtn) nextBtn.addEventListener('click', () => loadNextInventoryPage(userRole));
+    // --- AKHIR PENAMBAHAN ---
 
     if (importFileInput && processImportButton) {
         importFileInput.addEventListener('change', (e) => {
             processImportButton.disabled = !(e.target.files && e.target.files.length > 0);
         });
-
         processImportButton.addEventListener('click', () => {
             const file = importFileInput.files[0];
             if (file) {
@@ -49,12 +69,11 @@ function initializeStatusInventarisPage(userRole) {
         });
     }
 
+    // Fungsi ini sekarang akan memuat halaman pertama dan menyiapkan logika tabel utama
     initializeInventoryManagement(userRole);
-
-    const minStockThresholdInput = document.getElementById('minStockThreshold');
-    const expiryWarningDaysInput = document.getElementById('expiryWarningDays');
-
-    subscribeToInventoryUpdates(handleInventoryDataUpdate);
+    
+    // Fungsi subscribe ini sekarang hanya untuk tabel status
+    subscribeToInventoryStatusUpdates(handleInventoryStatusUpdate);
     
     if(minStockThresholdInput) {
         minStockThresholdInput.addEventListener('change', () => renderStatusTables(lastReceivedInventoryData));
@@ -64,8 +83,11 @@ function initializeStatusInventarisPage(userRole) {
     }
 }
 
-function handleInventoryDataUpdate(allItems) {
-    showLoading(true, 'loadingIndicatorStatus');
+/**
+ * Memperbarui widget ringkasan dan tabel status (bukan tabel utama).
+ * @param {Array} allItems - Data lengkap inventaris dari onSnapshot.
+ */
+function handleInventoryStatusUpdate(allItems) {
     lastReceivedInventoryData = allItems;
     
     const totalUniqueProductsEl = document.getElementById('totalUniqueProducts');
@@ -75,10 +97,11 @@ function handleInventoryDataUpdate(allItems) {
     const totalStock = allItems.reduce((sum, item) => sum + (item.stock || 0), 0);
     if(totalStockQuantityEl) totalStockQuantityEl.textContent = totalStock.toLocaleString('id-ID');
 
+    // Render ulang tabel status setiap ada perubahan data
     renderStatusTables(lastReceivedInventoryData);
-    showLoading(false, 'loadingIndicatorStatus');
 }
 
+// Sisa file (renderStatusTables, confirmDeleteExpiredItem, dll.) TIDAK BERUBAH
 function renderStatusTables(items) {
     const lowStockTableBody = document.getElementById('lowStockTableBody');
     const nearingExpiryTableBody = document.getElementById('nearingExpiryTableBody');
@@ -156,12 +179,12 @@ function renderStatusTables(items) {
     
     updateUserInterfaceForRole(getCurrentUserRole());
 }
-
 function confirmDeleteExpiredItem(itemId, itemName) {
-    const modal = document.getElementById('confirmationModalStatus');
-    const message = document.getElementById('confirmationMessageStatus');
-    const confirmBtn = document.getElementById('confirmActionButtonStatus');
-    const cancelBtn = document.getElementById('cancelActionButtonStatus');
+    // Menggunakan modal dari inventaris.html, bukan confirmationModalStatus
+    const modal = document.getElementById('confirmationModal'); 
+    const message = document.getElementById('confirmationMessage');
+    const confirmBtn = document.getElementById('confirmDeleteButton');
+    const cancelBtn = document.getElementById('cancelDeleteButton');
 
     if (!modal || !message || !confirmBtn || !cancelBtn) {
         if (confirm(`Yakin ingin menghapus "${itemName}" dari inventaris?`)) {
@@ -186,12 +209,12 @@ function confirmDeleteExpiredItem(itemId, itemName) {
         modal.classList.add('hidden');
     }, { once: true });
 }
-
 async function performDeleteExpired(itemId, itemName) {
     showLoading(true, 'loadingIndicatorStatus');
     try {
         await deleteDoc(doc(getInventoryCollectionRef(), itemId));
         displayMessage(`Produk "${itemName}" berhasil dihapus.`, 'success');
+        // Tidak perlu reload halaman utama karena listener status akan menangani update
     } catch (error) {
         console.error("Error deleting expired item:", error);
         displayMessage(`Gagal menghapus item: ${error.message}`, 'error');

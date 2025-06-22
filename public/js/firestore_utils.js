@@ -1,6 +1,11 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-// PENAMBAHAN: Impor 'setDoc' dan 'writeBatch' untuk digunakan di modul lain
-import { getFirestore, collection, doc, serverTimestamp, runTransaction, setLogLevel, addDoc, updateDoc, deleteDoc, onSnapshot, query, where, getDocs, Timestamp, getDoc, writeBatch, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"; 
+// PENAMBAHAN: Impor fungsi paginasi dan tambahkan ke 'export'
+import { 
+    getFirestore, collection, doc, serverTimestamp, runTransaction, 
+    setLogLevel, addDoc, updateDoc, deleteDoc, onSnapshot, 
+    query, where, getDocs, Timestamp, getDoc, writeBatch, setDoc,
+    orderBy, limit, startAfter, endBefore, limitToLast // <- Fungsi baru diimpor
+} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"; 
 import { firebaseConfig, APOTEK_ID } from './firebase-config.js'; 
 
 const app = initializeApp(firebaseConfig); 
@@ -43,5 +48,9 @@ export function getUsersCollectionRef() {
     return collection(db, "users");
 }
 
-// Ekspor semua fungsi yang dibutuhkan agar bisa diimpor di modul lain
-export { collection, doc, serverTimestamp, runTransaction, addDoc, updateDoc, deleteDoc, onSnapshot, query, where, getDocs, Timestamp, getDoc, writeBatch, setDoc };
+// PERBAIKAN: Tambahkan fungsi paginasi ke dalam pernyataan export
+export { 
+    collection, doc, serverTimestamp, runTransaction, addDoc, updateDoc, deleteDoc, onSnapshot, 
+    query, where, getDocs, Timestamp, getDoc, writeBatch, setDoc,
+    orderBy, limit, startAfter, endBefore, limitToLast // <- Fungsi baru diekspor
+};
