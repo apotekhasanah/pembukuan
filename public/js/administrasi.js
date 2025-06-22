@@ -1,11 +1,9 @@
 /**
  * =================================================================
- * File: public/js/administrasi.js (DENGAN FITUR REGISTRASI)
+ * File: public/js/administrasi.js (VALIDASI DITINGKATKAN)
  * =================================================================
- * Deskripsi: Modul ini menangani semua logika untuk halaman Administrasi.
- * - Menampilkan daftar pengguna.
- * - Mengedit peran dan status pengguna.
- * - BARU: Mendaftarkan pengguna baru langsung oleh Superadmin.
+ * Deskripsi: Modul ini telah direvisi untuk menambahkan validasi
+ * input yang lebih kuat pada form registrasi pengguna baru.
  */
 
 import { displayMessage, showLoading } from './main.js';
@@ -17,14 +15,9 @@ import {
     updateDoc,
     setDoc
 } from './firestore_utils.js';
-
-// ========================================================
-// PERBAIKAN: Impor Firebase Auth & Config dari sumber yang benar
-// ========================================================
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { firebaseConfig, APOTEK_ID } from './firebase-config.js';
-
 
 // --- Inisialisasi Halaman ---
 document.addEventListener('DOMContentLoaded', () => {
@@ -42,11 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-/**
- * Menginisialisasi semua listener dan event handler di halaman.
- */
 function initializePage() {
-    // Listener untuk tabel pengguna
     const usersCollectionRef = getUsersCollectionRef();
     onSnapshot(usersCollectionRef, (snapshot) => {
         const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -56,44 +45,47 @@ function initializePage() {
         displayMessage("Gagal memuat data pengguna.", "error");
     });
 
-    // Listener untuk form edit
     document.getElementById('editUserForm')?.addEventListener('submit', handleSaveChanges);
     document.getElementById('cancelEditUserButton')?.addEventListener('click', closeEditModal);
-
-    // --- Listener untuk form registrasi BARU ---
     document.getElementById('registerUserForm')?.addEventListener('submit', handleRegistration);
 }
 
-// --- Fungsi Registrasi Pengguna oleh Superadmin ---
-
-/**
- * Menangani pembuatan akun baru oleh superadmin.
- * @param {Event} e Event submit form
- */
+// --- FUNGSI DENGAN VALIDASI YANG DIPERBARUI ---
 async function handleRegistration(e) {
     e.preventDefault();
-    showLoading(true, 'registerLoadingIndicator');
     const registerButton = e.target.querySelector('button[type="submit"]');
-    if(registerButton) registerButton.disabled = true;
 
     const email = document.getElementById('registerEmail').value;
     const password = document.getElementById('registerPassword').value;
     const confirmPassword = document.getElementById('confirmPassword').value;
     const role = document.getElementById('registerRole').value;
 
-    if (password !== confirmPassword) {
-        displayMessage('Password dan konfirmasi password tidak cocok.', 'error');
-        showLoading(false, 'registerLoadingIndicator');
-        if(registerButton) registerButton.disabled = false;
+    // ==================================================================
+    // PERUBAHAN: Blok Validasi Input
+    // ==================================================================
+    if (!email || !password || !confirmPassword) {
+        displayMessage('Semua field (Email, Password, Konfirmasi) wajib diisi.', 'error');
         return;
     }
+    if (password.length < 6) {
+        displayMessage('Password harus terdiri dari minimal 6 karakter.', 'error');
+        return;
+    }
+    if (password !== confirmPassword) {
+        displayMessage('Password dan konfirmasi password tidak cocok.', 'error');
+        return;
+    }
+    // ==================================================================
+    // AKHIR PERUBAHAN
+    // ==================================================================
+    
+    showLoading(true, 'registerLoadingIndicator');
+    if(registerButton) registerButton.disabled = true;
 
-    // Buat instance aplikasi Firebase sementara agar tidak mengganggu sesi Superadmin
     let tempApp;
     try {
         tempApp = initializeApp(firebaseConfig, 'temp-registration-app');
     } catch (error) {
-        // Jika instance sudah ada karena error sebelumnya, coba gunakan yang sudah ada
         if (error.code === 'duplicate-app') {
             tempApp = initializeApp(firebaseConfig, 'temp-registration-app', true);
         } else {
@@ -104,48 +96,42 @@ async function handleRegistration(e) {
             return;
         }
     }
-
     const tempAuth = getAuth(tempApp);
 
     try {
-        // Buat pengguna di Firebase Authentication menggunakan instance sementara
         const userCredential = await createUserWithEmailAndPassword(tempAuth, email, password);
         const newUser = userCredential.user;
 
-        // Buat dokumen untuk pengguna baru di Firestore
         const userDocRef = doc(getUsersCollectionRef(), newUser.uid);
         const newUserData = {
             email: newUser.email,
             role: role,
-            status: 'aktif', // Langsung aktif karena dibuat oleh Superadmin
+            status: 'aktif',
             apotekId: APOTEK_ID,
             createdAt: new Date()
         };
         await setDoc(userDocRef, newUserData);
 
         displayMessage(`Akun untuk ${email} berhasil dibuat dengan peran ${role}.`, 'success');
-        e.target.reset(); // Reset form
+        e.target.reset();
 
     } catch (error) {
         console.error("Admin registration error:", error);
         let friendlyMessage = "Gagal mendaftarkan pengguna.";
         if (error.code === 'auth/email-already-in-use') {
             friendlyMessage = "Email ini sudah terdaftar.";
-        } else if (error.code === 'auth/weak-password') {
-            friendlyMessage = "Password terlalu lemah (minimal 6 karakter).";
+        } else if (error.code === 'auth/invalid-email') {
+            friendlyMessage = "Format email tidak valid.";
         }
         displayMessage(friendlyMessage, "error");
     } finally {
         showLoading(false, 'registerLoadingIndicator');
         if(registerButton) registerButton.disabled = false;
-        // Hapus aplikasi sementara untuk membersihkan resource
-        // (Meskipun di client-side, ini praktik yang baik jika memungkinkan)
     }
 }
 
 
-// --- Fungsi Administrasi Eksisting ---
-
+// --- Sisa file `administrasi.js` tidak ada perubahan ---
 function renderUsersTable(users) {
     const tableBody = document.getElementById('usersTableBody');
     if (!tableBody) return;

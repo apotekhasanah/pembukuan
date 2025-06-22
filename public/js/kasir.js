@@ -1,23 +1,45 @@
 /**
  * =================================================================
- * File: public/js/kasir.js (VALIDASI DAN PERBAIKAN CETAK STRUK)
+ * File: public/js/kasir.js (REVISI PENCARIAN & DEBOUNCE)
  * =================================================================
- * Deskripsi: Modul ini telah divalidasi dan diperbaiki.
- * - Bug pada fungsi cetak struk telah diperbaiki dengan implementasi penuh.
- * - Format struk disesuaikan untuk printer thermal. Ukuran kertas kini fleksibel.
- * - Proses cetak kini otomatis muncul setelah transaksi berhasil.
- * - Menggunakan iframe tersembunyi untuk proses cetak yang lebih andal.
+ * Deskripsi: Modul ini telah direvisi untuk memperbaiki fitur pencarian
+ * riwayat penjualan.
+ * - Menambahkan fungsi `debounce` untuk mencegah query berlebihan saat pengguna mengetik.
+ * - `handleSalesHistorySearch` kini mencari berdasarkan ID Nota DAN Nama Pasien.
+ * - Menggunakan `Promise.all` untuk menjalankan dua query secara paralel.
+ * - Menggabungkan hasil query dan menghapus duplikat di sisi klien.
  */
 
 import { displayMessage, showLoading, formatRupiah, formatDate } from './main.js';
 import { getCurrentUserId, getCurrentUserRole, getFirebaseAuth, subscribeToAuthReady } from './auth.js';
 import { subscribeToInventoryUpdates, getInventoryCache, initializeInventoryManagement } from './inventory-logic.js';
 import { getSalesCollectionRef, getInventoryCollectionRef, getDb } from './firestore_utils.js';
-import { doc, runTransaction, addDoc, query, orderBy, limit, onSnapshot, updateDoc, deleteDoc } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+// Impor fungsi tambahan untuk paginasi dan query
+import { doc, runTransaction, query, orderBy, limit, getDocs, updateDoc, deleteDoc, startAfter, endBefore, limitToLast, where } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 
 // --- Variabel State Global untuk Modul Kasir ---
-let salesHistoryCache = [];
-let unsubscribeSalesListener = null;
+const SALES_PAGE_SIZE = 15; // Jumlah item per halaman
+let salesHistoryFirstVisibleDoc = null; // Dokumen pertama di halaman saat ini
+let salesHistoryLastVisibleDoc = null; // Dokumen terakhir di halaman saat ini
+let currentPageNumber = 1;
+let isSearchActive = false;
+
+/**
+ * Utility function to delay execution of a function until after a certain time has passed
+ * without it being called again.
+ * @param {Function} func The function to debounce.
+ * @param {number} delay The delay in milliseconds.
+ * @returns {Function} The debounced function.
+ */
+function debounce(func, delay = 500) {
+    let timeout;
+    return function(...args) {
+        const context = this;
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(context, args), delay);
+    };
+}
+
 
 // --- Inisialisasi Utama ---
 document.addEventListener('DOMContentLoaded', () => {
@@ -48,19 +70,18 @@ function initializeKasirPage(userRole) {
     const cancelEditSaleButton = document.getElementById('cancelEditSaleButton');
     const currentSaleTableBody = document.getElementById('currentSaleTableBody');
     const saleTotalAmount = document.getElementById('saleTotalAmount');
-    const salesHistoryTableBody = document.getElementById('salesHistoryTableBody');
     const patientNameInput = document.getElementById('patientName');
+    const prevPageButton = document.getElementById('prevPageButton');
+    const nextPageButton = document.getElementById('nextPageButton');
+    const paginationControls = document.getElementById('paginationControls');
 
     // --- State Lokal untuk Halaman Kasir ---
     let currentSaleItems = [];
     const auth = getFirebaseAuth();
 
-    /**
-     * Merender tabel item yang sedang dalam transaksi.
-     */
+    // ... (Fungsi renderCurrentSale, updateSaleItemQuantity, removeSaleItem, addProductToSale, handleSaleItemSearch tidak berubah) ...
     function renderCurrentSale() {
         if(!currentSaleTableBody) return;
-
         currentSaleTableBody.innerHTML = '';
         let total = 0;
         if (currentSaleItems.length === 0) {
@@ -93,10 +114,6 @@ function initializeKasirPage(userRole) {
         if(saleTotalAmount) saleTotalAmount.textContent = formatRupiah(total);
         if(finalizeSaleButton) finalizeSaleButton.disabled = currentSaleItems.length === 0;
     }
-
-    /**
-     * Memperbarui kuantitas item dalam transaksi.
-     */
     function updateSaleItemQuantity(index, newQuantity) {
         const item = currentSaleItems[index];
         const inventory = getInventoryCache();
@@ -113,18 +130,10 @@ function initializeKasirPage(userRole) {
         }
         renderCurrentSale();
     }
-
-    /**
-     * Menghapus item dari transaksi.
-     */
     function removeSaleItem(index) {
         currentSaleItems.splice(index, 1);
         renderCurrentSale();
     }
-
-    /**
-     * Menambahkan produk ke dalam daftar transaksi.
-     */
     function addProductToSale(product) {
         if(saleItemSearchInput) saleItemSearchInput.value = '';
         if(saleItemSearchResults) saleItemSearchResults.classList.add('hidden');
@@ -140,10 +149,6 @@ function initializeKasirPage(userRole) {
         }
         renderCurrentSale();
     }
-    
-    /**
-     * Menangani pencarian produk saat input berubah.
-     */
     function handleSaleItemSearch(e) {
         const searchTerm = e.target.value.toLowerCase();
         if(saleItemSearchResults) saleItemSearchResults.innerHTML = '';
@@ -211,17 +216,16 @@ function initializeKasirPage(userRole) {
                     if (newStock < 0) throw new Error(`Stok ${item.name} tidak cukup.`);
                     transaction.update(productDocRef, { stock: newStock, lastUpdated: new Date() });
                 }
-                // Firestore secara otomatis akan mengkonversi objek Date() ke Timestamp
                 const saleDocRef = doc(salesCollectionRef);
                 transaction.set(saleDocRef, saleData);
             });
 
             displayMessage('Penjualan berhasil! Stok telah diperbarui.', 'success');
-            // Menampilkan struk di modal dan langsung memicu proses cetak
             showAndPrintReceipt(saleData, true); 
-            currentSaleItems = []; // Kosongkan array
+            currentSaleItems = []; 
             if(patientNameInput) patientNameInput.value = '';
             renderCurrentSale();
+            loadSalesHistory(userRole); // Muat ulang halaman pertama setelah penjualan
         } catch (error) {
             console.error("Error finalizing sale: ", error);
             displayMessage(`Error penjualan: ${error.message}`, 'error');
@@ -230,13 +234,77 @@ function initializeKasirPage(userRole) {
         }
     }
     
-    // --- Bagian Riwayat Penjualan ---
+    // --- Bagian Riwayat Penjualan (DIREVISI UNTUK PAGINASI & PENCARIAN) ---
     
+    /**
+     * Memuat halaman pertama atau halaman yang ditentukan dari riwayat penjualan.
+     * @param {string} userRole - Peran pengguna.
+     * @param {Query | null} queryToRun - Kueri Firestore yang akan dijalankan.
+     */
+    async function loadSalesHistory(userRole, queryToRun = null) {
+        const salesHistoryTableBody = document.getElementById('salesHistoryTableBody');
+        if (!salesHistoryTableBody) return;
+        salesHistoryTableBody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-gray-400 text-sm"><i>Memproses riwayat penjualan...</i></td></tr>`;
+
+        isSearchActive = false;
+        if(paginationControls) paginationControls.style.display = 'flex';
+
+        try {
+            // Jika tidak ada query spesifik, buat query untuk halaman pertama
+            if (!queryToRun) {
+                currentPageNumber = 1;
+                queryToRun = query(getSalesCollectionRef(), orderBy("saleDate", "desc"), limit(SALES_PAGE_SIZE));
+            }
+
+            const documentSnapshots = await getDocs(queryToRun);
+            const salesData = documentSnapshots.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+
+            if (salesData.length === 0 && currentPageNumber > 1) {
+                // Jika halaman saat ini kosong (misalnya, setelah menghapus item terakhir)
+                currentPageNumber--;
+                loadSalesHistory(userRole); // Coba muat halaman sebelumnya
+                return;
+            }
+            
+            renderSalesHistoryTable(salesData, userRole);
+
+            // Perbarui state paginasi
+            salesHistoryFirstVisibleDoc = documentSnapshots.docs[0];
+            salesHistoryLastVisibleDoc = documentSnapshots.docs[documentSnapshots.docs.length - 1];
+
+            // Update UI Tombol Paginasi
+            if(prevPageButton) prevPageButton.disabled = currentPageNumber === 1;
+            if(nextPageButton) nextPageButton.disabled = documentSnapshots.docs.length < SALES_PAGE_SIZE;
+            const pageInfo = document.getElementById('pageInfo');
+            if(pageInfo) pageInfo.textContent = `Halaman ${currentPageNumber}`;
+
+        } catch (error) {
+            console.error("kasir.js: Error fetching sales history:", error);
+            displayMessage(`Error memuat riwayat penjualan: ${error.message}`, 'error');
+            if(salesHistoryTableBody) salesHistoryTableBody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-red-500">Gagal memuat riwayat. Periksa console.</td></tr>`;
+        }
+    }
+
+    function loadNextPage(userRole) {
+        if (!salesHistoryLastVisibleDoc) return;
+        currentPageNumber++;
+        const nextQuery = query(getSalesCollectionRef(), orderBy("saleDate", "desc"), startAfter(salesHistoryLastVisibleDoc), limit(SALES_PAGE_SIZE));
+        loadSalesHistory(userRole, nextQuery);
+    }
+
+    function loadPrevPage(userRole) {
+        if (!salesHistoryFirstVisibleDoc) return;
+        currentPageNumber--;
+        const prevQuery = query(getSalesCollectionRef(), orderBy("saleDate", "desc"), endBefore(salesHistoryFirstVisibleDoc), limitToLast(SALES_PAGE_SIZE));
+        loadSalesHistory(userRole, prevQuery);
+    }
+
     function renderSalesHistoryTable(salesData, role) {
+        const salesHistoryTableBody = document.getElementById('salesHistoryTableBody');
         if (!salesHistoryTableBody) return;
         salesHistoryTableBody.innerHTML = '';
         if (salesData.length === 0) {
-            salesHistoryTableBody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-gray-500">Tidak ada data untuk ditampilkan.</td></tr>`;
+            salesHistoryTableBody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-gray-500">${isSearchActive ? 'Data tidak ditemukan.' : 'Tidak ada data untuk ditampilkan.'}</td></tr>`;
             return;
         }
 
@@ -257,7 +325,6 @@ function initializeKasirPage(userRole) {
             viewReceiptButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 7.5l3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0021 18V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v12a2.25 2.25 0 002.25 2.25z" /></svg>`;
             viewReceiptButton.title = "Lihat Struk";
             viewReceiptButton.classList.add('bg-blue-500', 'hover:bg-blue-600', 'text-white', 'p-1.5', 'rounded-md', 'text-sm');
-            // Menampilkan struk di modal tanpa langsung mencetak
             viewReceiptButton.onclick = () => showAndPrintReceipt(sale, false);
             actionsCell.appendChild(viewReceiptButton);
             
@@ -273,78 +340,83 @@ function initializeKasirPage(userRole) {
                 deleteButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>`;
                 deleteButton.title = "Hapus Penjualan";
                 deleteButton.className = 'bg-red-500 hover:bg-red-700 text-white p-1.5 rounded-md text-sm';
-                deleteButton.onclick = () => confirmDeleteSale(sale);
+                deleteButton.onclick = () => confirmDeleteSale(sale, userRole);
                 actionsCell.appendChild(deleteButton);
             }
         });
     }
     
-    function handleSalesHistorySearch(e) {
-        const searchTerm = e.target.value.toLowerCase();
-        const filteredSales = salesHistoryCache.filter(sale => {
-            const receiptIdMatch = sale.receiptId && sale.receiptId.toLowerCase().includes(searchTerm);
-            const patientNameMatch = sale.patientName && sale.patientName.toLowerCase().includes(searchTerm);
-            return receiptIdMatch || patientNameMatch;
-        });
-        renderSalesHistoryTable(filteredSales, userRole);
+    /**
+     * ======================================================================
+     * FUNGSI PENCARIAN YANG DIPERBAIKI
+     * Mencari berdasarkan ID Nota dan Nama Pasien, lalu menggabungkan hasil.
+     * ======================================================================
+     */
+    async function handleSalesHistorySearch(e) {
+        const searchTerm = e.target.value.trim();
+        const salesHistoryTableBody = document.getElementById('salesHistoryTableBody');
+        const paginationControls = document.getElementById('paginationControls');
+
+        if (!searchTerm) {
+            isSearchActive = false;
+            if (paginationControls) paginationControls.style.display = 'flex';
+            loadSalesHistory(userRole); // Kembali ke mode paginasi
+            return;
+        }
+
+        isSearchActive = true;
+        if (paginationControls) paginationControls.style.display = 'none';
+        if (salesHistoryTableBody) salesHistoryTableBody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-gray-400 text-sm"><i>Mencari data untuk "${searchTerm}"...</i></td></tr>`;
+
+        try {
+            // Firestore tidak mendukung 'OR' pada field berbeda, jadi kita lakukan 2 query dan gabungkan hasilnya.
+            
+            // Query 1: Cari berdasarkan ID Nota (case-insensitive)
+            const receiptQuery = query(getSalesCollectionRef(),
+                orderBy("receiptId"),
+                where("receiptId", ">=", searchTerm.toUpperCase()),
+                where("receiptId", "<=", searchTerm.toUpperCase() + '\uf8ff')
+            );
+            
+            // Query 2: Cari berdasarkan Nama Pasien (case-insensitive-like)
+            const capitalizedTerm = searchTerm.charAt(0).toUpperCase() + searchTerm.slice(1).toLowerCase();
+            const patientNameQuery = query(getSalesCollectionRef(),
+                orderBy("patientName"),
+                where("patientName", ">=", capitalizedTerm),
+                where("patientName", "<=", capitalizedTerm + '\uf8ff')
+            );
+
+            // Jalankan kedua query secara paralel
+            const [receiptSnapshots, patientSnapshots] = await Promise.all([
+                getDocs(receiptQuery),
+                getDocs(patientNameQuery)
+            ]);
+
+            // Gunakan Map untuk menggabungkan hasil dan menghapus duplikat (berdasarkan ID dokumen)
+            const resultsMap = new Map();
+            receiptSnapshots.forEach(doc => {
+                resultsMap.set(doc.id, { id: doc.id, ...doc.data() });
+            });
+            patientSnapshots.forEach(doc => {
+                if (!resultsMap.has(doc.id)) {
+                    resultsMap.set(doc.id, { id: doc.id, ...doc.data() });
+                }
+            });
+            
+            // Ubah Map kembali menjadi array dan urutkan berdasarkan tanggal terbaru
+            const finalResults = Array.from(resultsMap.values());
+            finalResults.sort((a, b) => (b.saleDate?.toDate() || 0) - (a.saleDate?.toDate() || 0));
+
+            renderSalesHistoryTable(finalResults, userRole);
+
+        } catch (error) {
+            console.error("Error during search:", error);
+            displayMessage("Pencarian gagal. Mungkin diperlukan pembuatan indeks di Firestore. Periksa console untuk detail.", "error");
+            if (salesHistoryTableBody) renderSalesHistoryTable([], userRole);
+        }
     }
     
-    async function loadSalesHistory() {
-        if (!salesHistoryTableBody) return;
-        salesHistoryTableBody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-gray-400 text-sm"><i>Memproses riwayat penjualan...</i></td></tr>`;
-
-        if (unsubscribeSalesListener) unsubscribeSalesListener();
-        
-        const qSales = query(getSalesCollectionRef(), orderBy("saleDate", "desc"), limit(50));
-
-        unsubscribeSalesListener = onSnapshot(qSales, (querySnapshot) => {
-            salesHistoryCache = querySnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
-            renderSalesHistoryTable(salesHistoryCache, userRole);
-        }, (error) => {
-            console.error("kasir.js: Error di onSnapshot riwayat penjualan:", error);
-            displayMessage(`Error memuat riwayat penjualan: ${error.message}`, 'error');
-            if(salesHistoryTableBody) salesHistoryTableBody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-red-500">Gagal memuat riwayat. Periksa console.</td></tr>`;
-        });
-    }
-
-    // ========================================================
-    // FUNGSI BARU UNTUK MENCETAK STRUK THERMAL
-    // ========================================================
-    /**
-     * Menyiapkan dan mencetak konten struk ke printer.
-     * @param {string} receiptHtml - Konten HTML dari struk.
-     */
-    function printContent(receiptHtml) {
-        // Buat iframe tersembunyi
-        const iframe = document.createElement('iframe');
-        iframe.style.position = 'absolute';
-        iframe.style.width = '0';
-        iframe.style.height = '0';
-        iframe.style.border = '0';
-        document.body.appendChild(iframe);
-
-        // Tulis konten HTML ke dalam iframe
-        const doc = iframe.contentWindow.document;
-        doc.open();
-        doc.write(receiptHtml);
-        doc.close();
-
-        // Tunggu iframe selesai memuat lalu cetak
-        iframe.onload = function() {
-            iframe.contentWindow.focus();
-            iframe.contentWindow.print();
-            // Hapus iframe setelah beberapa saat
-            setTimeout(() => {
-                document.body.removeChild(iframe);
-            }, 1000);
-        };
-    }
-
-    /**
-     * Membuat format HTML untuk struk thermal dan menampilkannya.
-     * @param {object} saleData - Objek data penjualan.
-     * @param {boolean} autoPrint - Jika true, dialog cetak akan otomatis muncul.
-     */
+    // ... (fungsi showAndPrintReceipt, printContent, dan semua fungsi superadmin tidak berubah) ...
     function showAndPrintReceipt(saleData, autoPrint = false) {
         const receiptModal = document.getElementById('receiptModal');
         const receiptContentEl = document.getElementById('receiptContent');
@@ -354,9 +426,8 @@ function initializeKasirPage(userRole) {
         
         const receiptDate = (saleData.saleDate instanceof Date) 
             ? saleData.saleDate.toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })
-            : formatDate(saleData.saleDate); // Fallback jika formatnya Timestamp
+            : formatDate(saleData.saleDate); 
 
-        // Membuat baris item dengan subtotal rata kanan
         let itemsHtml = saleData.items.map(item => `
             <div>${item.name}</div>
             <div style="display: flex; justify-content: space-between;">
@@ -365,7 +436,6 @@ function initializeKasirPage(userRole) {
             </div>
         `).join('');
 
-        // Membuat konten HTML lengkap untuk struk
         const thermalHtml = `
             <div style="text-align: center; margin-bottom: 8px;">
                 <strong style="font-size: 1.1em;">Apotek Hasanah Rahayu</strong><br>
@@ -389,75 +459,46 @@ function initializeKasirPage(userRole) {
             <div style="text-align: center; margin-top: 8px;">Terima kasih atas kunjungan Anda!</div>
         `;
         
-        // ========================================================
-        // PERUBAHAN DI SINI: CSS untuk ukuran kertas fleksibel
-        // ========================================================
         const fullHtmlForPrint = `
-            <html>
-                <head>
-                    <title>Struk Pembelian</title>
-                    <style>
-                        @media print {
-                            @page { 
-                                size: auto; /* Ukuran kertas akan otomatis mengikuti pengaturan printer */
-                                margin: 0; 
-                            }
-                            body { 
-                                margin: 4mm; /* Beri sedikit margin pada konten yang dicetak */
-                                color-adjust: exact; 
-                                -webkit-print-color-adjust: exact; 
-                            }
-                        }
-                        body {
-                            font-family: 'Courier New', Courier, monospace;
-                            font-size: 10pt;
-                            line-height: 1.4;
-                            /* Hapus 'width' agar fleksibel */
-                        }
-                        hr { border: 0; border-top: 1px dashed black; margin: 8px 0; }
-                    </style>
-                </head>
-                <body>
-                    ${thermalHtml}
-                </body>
-            </html>
+            <html><head><title>Struk Pembelian</title>
+            <style>
+                @media print { @page { size: auto; margin: 0; } body { margin: 4mm; color-adjust: exact; -webkit-print-color-adjust: exact; } }
+                body { font-family: 'Courier New', Courier, monospace; font-size: 10pt; line-height: 1.4; }
+                hr { border: 0; border-top: 1px dashed black; margin: 8px 0; }
+            </style></head><body>${thermalHtml}</body></html>
         `;
 
-        // Tampilkan pratinjau di modal
         receiptContentEl.innerHTML = thermalHtml;
         receiptModal.classList.remove('hidden');
-
-        // Fungsi untuk tombol cetak ulang
         printReceiptButton.onclick = () => printContent(fullHtmlForPrint);
-
-        // Fungsi untuk tombol tutup
         closeReceiptButton.onclick = () => receiptModal.classList.add('hidden');
-
-        // Jika autoPrint true, langsung cetak
-        if (autoPrint) {
-            printContent(fullHtmlForPrint);
-        }
+        if (autoPrint) printContent(fullHtmlForPrint);
     }
-
-
-    // --- Semua fungsi untuk Superadmin ---
-
+    function printContent(receiptHtml) {
+        const iframe = document.createElement('iframe');
+        iframe.style.position = 'absolute'; iframe.style.width = '0'; iframe.style.height = '0'; iframe.style.border = '0';
+        document.body.appendChild(iframe);
+        const doc = iframe.contentWindow.document;
+        doc.open(); doc.write(receiptHtml); doc.close();
+        iframe.onload = function() {
+            iframe.contentWindow.focus();
+            iframe.contentWindow.print();
+            setTimeout(() => document.body.removeChild(iframe), 1000);
+        };
+    }
     function openEditSaleModal(sale) {
         const modal = document.getElementById('editSaleModal');
         if (!modal) return;
         document.getElementById('editSaleId').value = sale.id;
         document.getElementById('editPatientName').value = sale.patientName || '';
-        // Konversi Timestamp Firestore ke Date jika perlu
         const saleDate = sale.saleDate.toDate ? sale.saleDate.toDate() : new Date(sale.saleDate);
         document.getElementById('editSaleDate').value = saleDate.toISOString().split('T')[0];
         modal.classList.remove('hidden');
     }
-
     function closeEditSaleModal() {
         const modal = document.getElementById('editSaleModal');
         if (modal) modal.classList.add('hidden');
     }
-
     async function handleUpdateSale(e) {
         e.preventDefault();
         const saleId = document.getElementById('editSaleId').value;
@@ -468,12 +509,10 @@ function initializeKasirPage(userRole) {
         showLoading(true, 'editSaleLoadingIndicator');
         const saleDocRef = doc(getSalesCollectionRef(), saleId);
         try {
-            await updateDoc(saleDocRef, {
-                patientName: patientName,
-                saleDate: new Date(saleDate)
-            });
+            await updateDoc(saleDocRef, { patientName: patientName, saleDate: new Date(saleDate) });
             displayMessage("Data penjualan berhasil diperbarui.", "success");
             closeEditSaleModal();
+            loadSalesHistory(userRole); // Muat ulang halaman saat ini
         } catch (error) {
             console.error("Error updating sale:", error);
             displayMessage("Gagal memperbarui data: " + error.message, "error");
@@ -481,8 +520,7 @@ function initializeKasirPage(userRole) {
             showLoading(false, 'editSaleLoadingIndicator');
         }
     }
-
-    function confirmDeleteSale(sale) {
+    function confirmDeleteSale(sale, userRole) {
         const modal = document.getElementById('confirmationModal');
         const message = document.getElementById('confirmationMessage');
         const confirmBtn = document.getElementById('confirmDeleteButton');
@@ -495,7 +533,7 @@ function initializeKasirPage(userRole) {
         const newConfirmBtn = confirmBtn.cloneNode(true);
         confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
         newConfirmBtn.addEventListener('click', () => {
-            performDeleteSale(sale);
+            performDeleteSale(sale, userRole);
             modal.classList.add('hidden');
         }, { once: true });
 
@@ -503,8 +541,7 @@ function initializeKasirPage(userRole) {
         cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
         newCancelBtn.addEventListener('click', () => modal.classList.add('hidden'), { once: true });
     }
-
-    async function performDeleteSale(sale) {
+    async function performDeleteSale(sale, userRole) {
         showLoading(true, 'saleLoadingIndicator');
         const db = getDb();
         const saleDocRef = doc(getSalesCollectionRef(), sale.id);
@@ -513,23 +550,19 @@ function initializeKasirPage(userRole) {
         try {
             await runTransaction(db, async (transaction) => {
                 const saleDoc = await transaction.get(saleDocRef);
-                if (!saleDoc.exists()) {
-                    throw new Error("Dokumen penjualan tidak ditemukan.");
-                }
-
+                if (!saleDoc.exists()) throw new Error("Dokumen penjualan tidak ditemukan.");
                 for (const item of sale.items) {
                     const productDocRef = doc(inventoryCollectionRef, item.productId);
                     const productDoc = await transaction.get(productDocRef);
                     if (productDoc.exists()) {
                         const newStock = (productDoc.data().stock || 0) + item.quantity;
                         transaction.update(productDocRef, { stock: newStock });
-                    } else {
-                        console.warn(`Produk dengan ID ${item.productId} tidak ditemukan di inventaris untuk pengembalian stok.`);
                     }
                 }
                 transaction.delete(saleDocRef);
             });
             displayMessage(`Nota ${sale.receiptId} berhasil dihapus dan stok telah dikembalikan.`, 'success');
+            loadSalesHistory(userRole); // Muat ulang halaman saat ini
         } catch (error) {
             console.error("Error deleting sale:", error);
             displayMessage("Gagal menghapus penjualan: " + error.message, "error");
@@ -547,11 +580,14 @@ function initializeKasirPage(userRole) {
     });
 
     if (finalizeSaleButton) finalizeSaleButton.addEventListener('click', handleFinalizeSale);
-    if (searchSalesHistoryInput) searchSalesHistoryInput.addEventListener('input', handleSalesHistorySearch);
-    if (editSaleForm) editSaleForm.addEventListener('submit', handleUpdateSale);
+    // PERUBAHAN DI SINI: Terapkan debounce pada listener pencarian
+    if (searchSalesHistoryInput) searchSalesHistoryInput.addEventListener('input', debounce(handleSalesHistorySearch, 500));
+    if (editSaleForm) editSaleForm.addEventListener('submit', (e) => handleUpdateSale(e, userRole));
     if (cancelEditSaleButton) cancelEditSaleButton.addEventListener('click', closeEditSaleModal);
+    if (nextPageButton) nextPageButton.addEventListener('click', () => loadNextPage(userRole));
+    if (prevPageButton) prevPageButton.addEventListener('click', () => loadPrevPage(userRole));
     
     // Inisialisasi data
     initializeInventoryManagement(userRole);
-    loadSalesHistory(userRole);
+    loadSalesHistory(userRole); // Memuat halaman pertama dari riwayat penjualan
 }

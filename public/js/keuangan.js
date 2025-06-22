@@ -1,3 +1,12 @@
+/**
+ * =================================================================
+ * File: public/js/keuangan.js (VALIDASI DITINGKATKAN)
+ * =================================================================
+ * Deskripsi: Modul ini telah direvisi untuk menambahkan validasi
+ * input yang lebih eksplisit dan pesan error yang lebih jelas pada
+ * semua form pencatatan (pendapatan, biaya, utang/piutang).
+ */
+
 import { displayMessage, showLoading, formatRupiah, formatDate, updateUserInterfaceForRole } from './main.js';
 import { getCurrentUserId, getCurrentUserRole, subscribeToAuthReady } from './auth.js';
 import { 
@@ -22,11 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const loadingGlobal = document.getElementById('loadingOverlay');
         if (loadingGlobal) loadingGlobal.classList.add('hidden');
 
-        // =================================================================
-        // PERBAIKAN DI SINI: Izinkan akses untuk 'admin' atau 'superadmin'
-        // =================================================================
         const hasAccess = role === 'admin' || role === 'superadmin';
-
         if (userId && hasAccess) {
             initializeKeuanganPage();
             document.getElementById('mainContent')?.classList.remove('hidden');
@@ -42,7 +47,6 @@ function initializeKeuanganPage() {
     const tabs = document.querySelectorAll('.tab-button');
     const tabContents = document.querySelectorAll('.tab-content');
 
-    // Tab Logic
     tabs.forEach(tab => {
         tab.addEventListener('click', () => {
             tabs.forEach(item => {
@@ -51,29 +55,22 @@ function initializeKeuanganPage() {
             });
             tab.classList.add('text-green-600', 'border-green-500');
             tab.classList.remove('text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300', 'border-transparent');
-
-            tabContents.forEach(content => {
-                content.classList.add('hidden');
-            });
+            tabContents.forEach(content => content.classList.add('hidden'));
             const targetTab = document.getElementById(tab.dataset.tabTarget);
-            if (targetTab) {
-                targetTab.classList.remove('hidden');
-            }
+            if (targetTab) targetTab.classList.remove('hidden');
         });
     });
 
-    // Inisialisasi setiap tab
     initializePencatatan();
     initializeUtangPiutang();
     initializeLabaRugi();
     initializeArusKas();
     
     const defaultTab = document.querySelector('button[data-tab-target="labaRugi"]');
-    if (defaultTab) {
-        defaultTab.click();
-    }
+    if (defaultTab) defaultTab.click();
 }
 
+// --- FUNGSI DENGAN VALIDASI YANG DIPERBARUI ---
 function initializePencatatan() {
     const incomeForm = document.getElementById('incomeForm');
     const expenseForm = document.getElementById('expenseForm');
@@ -86,21 +83,29 @@ function initializePencatatan() {
     if(expenseDateEl) expenseDateEl.valueAsDate = new Date();
     if(accountDueDateEl) accountDueDateEl.valueAsDate = new Date();
 
-
     if (incomeForm) {
         incomeForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const incomeData = {
-                date: Timestamp.fromDate(new Date(document.getElementById('incomeDate').value)),
+                date: document.getElementById('incomeDate').value,
                 description: document.getElementById('incomeDescription').value.trim(),
                 amount: parseFloat(document.getElementById('incomeAmount').value)
             };
-            if (!incomeData.description || isNaN(incomeData.amount) || incomeData.amount <= 0) {
-                displayMessage("Deskripsi dan jumlah pendapatan harus diisi dengan benar.", "error"); return;
+            
+            // ================= VALIDASI =================
+            if (!incomeData.date) {
+                displayMessage("Tanggal pendapatan wajib diisi.", "error"); return;
             }
+            if (!incomeData.description) {
+                displayMessage("Deskripsi pendapatan wajib diisi.", "error"); return;
+            }
+            if (isNaN(incomeData.amount) || incomeData.amount <= 0) {
+                displayMessage("Jumlah pendapatan harus angka positif.", "error"); return;
+            }
+            // ============================================
 
             try {
-                await addDoc(getOtherIncomesCollectionRef(), incomeData);
+                await addDoc(getOtherIncomesCollectionRef(), {...incomeData, date: Timestamp.fromDate(new Date(incomeData.date)) });
                 displayMessage("Pendapatan lain-lain berhasil dicatat.", "success");
                 incomeForm.reset();
                 if(incomeDateEl) incomeDateEl.valueAsDate = new Date(); 
@@ -115,17 +120,26 @@ function initializePencatatan() {
         expenseForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const expenseData = {
-                date: Timestamp.fromDate(new Date(document.getElementById('expenseDate').value)),
+                date: document.getElementById('expenseDate').value,
                 description: document.getElementById('expenseDescription').value.trim(),
                 category: document.getElementById('expenseCategory').value,
                 amount: parseFloat(document.getElementById('expenseAmount').value)
             };
-            if (!expenseData.description || isNaN(expenseData.amount) || expenseData.amount <= 0) {
-                displayMessage("Deskripsi dan jumlah biaya harus diisi dengan benar.", "error"); return;
-            }
 
+            // ================= VALIDASI =================
+            if (!expenseData.date) {
+                displayMessage("Tanggal biaya wajib diisi.", "error"); return;
+            }
+            if (!expenseData.description) {
+                displayMessage("Deskripsi biaya wajib diisi.", "error"); return;
+            }
+            if (isNaN(expenseData.amount) || expenseData.amount <= 0) {
+                displayMessage("Jumlah biaya harus angka positif.", "error"); return;
+            }
+            // ============================================
+            
             try {
-                await addDoc(getExpensesCollectionRef(), expenseData);
+                await addDoc(getExpensesCollectionRef(), {...expenseData, date: Timestamp.fromDate(new Date(expenseData.date)) });
                 displayMessage("Biaya operasional berhasil dicatat.", "success");
                 expenseForm.reset();
                 if(expenseDateEl) expenseDateEl.valueAsDate = new Date(); 
@@ -144,16 +158,28 @@ function initializePencatatan() {
                 partyName: document.getElementById('partyName').value.trim(),
                 description: document.getElementById('accountDescription').value.trim(),
                 amount: parseFloat(document.getElementById('accountAmount').value),
-                dueDate: Timestamp.fromDate(new Date(document.getElementById('accountDueDate').value)),
+                dueDate: document.getElementById('accountDueDate').value,
                 status: 'belum_lunas',
                 createdAt: serverTimestamp()
             };
-            if (!accountData.partyName || !accountData.description || isNaN(accountData.amount) || accountData.amount <= 0) {
-                displayMessage("Semua field utang/piutang harus diisi dengan benar.", "error"); return;
+            
+            // ================= VALIDASI =================
+            if (!accountData.partyName) {
+                displayMessage("Nama supplier/pelanggan wajib diisi.", "error"); return;
             }
+            if (!accountData.description) {
+                displayMessage("Deskripsi transaksi wajib diisi.", "error"); return;
+            }
+            if (isNaN(accountData.amount) || accountData.amount <= 0) {
+                displayMessage("Jumlah utang/piutang harus angka positif.", "error"); return;
+            }
+            if (!accountData.dueDate) {
+                displayMessage("Tanggal jatuh tempo wajib diisi.", "error"); return;
+            }
+            // ============================================
 
             try {
-                await addDoc(getAccountsCollectionRef(), accountData);
+                await addDoc(getAccountsCollectionRef(), {...accountData, dueDate: Timestamp.fromDate(new Date(accountData.dueDate))});
                 displayMessage("Transaksi utang/piutang berhasil dicatat.", "success");
                 accountForm.reset();
                 if(accountDueDateEl) accountDueDateEl.valueAsDate = new Date(); 
@@ -165,6 +191,8 @@ function initializePencatatan() {
     }
 }
 
+
+// --- Sisa file `keuangan.js` tidak ada perubahan ---
 function initializeUtangPiutang() {
     let unsubscribeUtang = null;
     let unsubscribePiutang = null;

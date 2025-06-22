@@ -1,10 +1,10 @@
 /**
  * =================================================================
- * File: public/js/inventory-logic.js (VALIDASI IMPOR DITINGKATKAN)
+ * File: public/js/inventory-logic.js (VALIDASI FORM DITINGKATKAN)
  * =================================================================
- * Deskripsi: Modul ini telah diperbarui dengan validasi impor yang lebih
- * kuat. Sekarang ia akan memeriksa duplikasi nama produk di dalam
- * file Excel itu sendiri sebelum memproses data ke Firestore.
+ * Deskripsi: Modul ini telah diperbarui dengan validasi di sisi klien yang lebih
+ * kuat pada fungsi `handleInventoryFormSubmit` untuk memastikan integritas data
+ * sebelum dikirim ke Firestore.
  */
 
 import { displayMessage, showLoading, formatRupiah, formatDate, updateUserInterfaceForRole } from './main.js';
@@ -42,8 +42,98 @@ export function initializeInventoryManagement(userRole) {
     }
 }
 
-// --- Logika Impor Inventaris dari Excel ---
+// ... (Fungsi logika impor dan lainnya tidak berubah) ...
 
+// --- FUNGSI DENGAN VALIDASI YANG DIPERBARUI ---
+async function handleInventoryFormSubmit(e) {
+    e.preventDefault();
+    const userId = getCurrentUserId();
+    const editItemId = document.getElementById('editItemId')?.value;
+
+    const itemData = {
+        name: document.getElementById('itemName').value.trim(),
+        category: document.getElementById('itemCategory').value.trim(),
+        stock: parseInt(document.getElementById('itemStock').value),
+        buyPrice: parseFloat(document.getElementById('itemBuyPrice').value),
+        sellPrice: parseFloat(document.getElementById('itemSellPrice').value),
+        arrivalDate: document.getElementById('itemArrivalDate').value,
+        expiryDate: document.getElementById('itemExpiryDate').value,
+        invoiceNumber: document.getElementById('itemInvoiceNumber').value.trim() || null,
+        distributor: document.getElementById('itemDistributor').value.trim() || null,
+    };
+    
+    // ==================================================================
+    // PERUBAHAN: Blok Validasi Input yang Lebih Ketat
+    // ==================================================================
+    if (!itemData.name || !itemData.category) {
+        displayMessage('Nama Produk dan Kategori wajib diisi.', 'error');
+        return;
+    }
+    if (isNaN(itemData.stock) || itemData.stock < 0) {
+        displayMessage('Jumlah stok tidak valid. Harus angka dan tidak boleh negatif.', 'error');
+        return;
+    }
+    if (isNaN(itemData.buyPrice) || itemData.buyPrice < 0) {
+        displayMessage('Harga Beli tidak valid. Harus angka dan tidak boleh negatif.', 'error');
+        return;
+    }
+    if (isNaN(itemData.sellPrice) || itemData.sellPrice < 0) {
+        displayMessage('Harga Jual tidak valid. Harus angka dan tidak boleh negatif.', 'error');
+        return;
+    }
+    if (itemData.sellPrice < itemData.buyPrice) {
+        displayMessage('Harga Jual tidak boleh lebih rendah dari Harga Beli.', 'error');
+        return;
+    }
+    if (!itemData.arrivalDate || !itemData.expiryDate) {
+        displayMessage('Tanggal Masuk dan Tanggal Kedaluwarsa wajib diisi.', 'error');
+        return;
+    }
+    const today = new Date().toISOString().split('T')[0];
+    if (itemData.expiryDate < today) {
+        displayMessage('Tanggal Kedaluwarsa tidak boleh tanggal yang sudah lewat.', 'error');
+        return;
+    }
+    // ==================================================================
+    // AKHIR PERUBAHAN
+    // ==================================================================
+
+    showLoading(true, 'loadingIndicatorInventory');
+    const inventoryCollectionRef = getInventoryCollectionRef();
+
+    try {
+        if (editItemId) {
+            // Logika untuk update
+            await updateDoc(doc(inventoryCollectionRef, editItemId), { ...itemData, lastUpdated: serverTimestamp(), updatedBy: userId });
+            displayMessage(`Produk "${itemData.name}" berhasil diupdate!`);
+        } else {
+            // Logika untuk membuat produk baru atau menambah stok yang ada
+            const q = query(inventoryCollectionRef, where("name", "==", itemData.name));
+            const querySnapshot = await getDocs(q);
+            if (!querySnapshot.empty) {
+                const existingDoc = querySnapshot.docs[0];
+                const newStock = (existingDoc.data().stock || 0) + itemData.stock;
+                await updateDoc(doc(inventoryCollectionRef, existingDoc.id), { ...itemData, stock: newStock, lastUpdated: serverTimestamp(), updatedBy: userId });
+                displayMessage(`Stok untuk "${itemData.name}" berhasil ditambahkan. Stok baru: ${newStock}.`, 'success');
+            } else {
+                await addDoc(inventoryCollectionRef, { ...itemData, createdAt: serverTimestamp(), createdBy: userId, lastUpdated: serverTimestamp(), updatedBy: userId });
+                displayMessage(`Produk baru "${itemData.name}" berhasil ditambahkan!`);
+            }
+        }
+        document.getElementById('inventoryForm').reset();
+        if (document.getElementById('editItemId')) document.getElementById('editItemId').value = '';
+        document.getElementById('formTitle').textContent = 'Tambah / Update Produk Manual';
+        document.getElementById('submitButton').textContent = 'Simpan Produk';
+    } catch (error) {
+        displayMessage(`Terjadi kesalahan: ${error.message}`, 'error');
+    } finally {
+        showLoading(false, 'loadingIndicatorInventory');
+    }
+}
+
+
+// --- Sisa file `inventory-logic.js` tidak ada perubahan ---
+// (Fungsi handleImport, listenForUpdates, renderTable, dll. tetap sama)
 export function handleInventoryImport(file, importFileInput, processButton) {
     const loadingIndicator = document.getElementById('importLoadingIndicator');
     if (loadingIndicator) loadingIndicator.classList.remove('hidden');
@@ -62,7 +152,6 @@ export function handleInventoryImport(file, importFileInput, processButton) {
             }
             const { validatedData, errors } = validateImportData(json);
             if (errors.length > 0) {
-                // Tampilkan hingga 5 error untuk kejelasan
                 throw new Error("Ditemukan error pada file:\n" + errors.slice(0, 5).join("\n"));
             }
             await batchWriteToFirestore(validatedData);
@@ -78,17 +167,11 @@ export function handleInventoryImport(file, importFileInput, processButton) {
     reader.readAsArrayBuffer(file);
 }
 
-/**
- * ========================================================
- * PERBAIKAN UTAMA: Validasi duplikasi di dalam file.
- * ========================================================
- */
 function validateImportData(jsonData) {
     const validatedData = [];
     const errors = [];
     const requiredHeaders = ['NamaProduk', 'Kategori', 'Stok', 'HargaBeli', 'HargaJual', 'TglKedaluwarsa'];
     
-    // Set untuk melacak nama produk yang sudah ada di file (case-insensitive)
     const productNamesInFile = new Set();
 
     const headers = Object.keys(jsonData[0] || {});
@@ -101,25 +184,23 @@ function validateImportData(jsonData) {
     }
 
     jsonData.forEach((row, index) => {
-        const rowNum = index + 2; // Nomor baris di Excel biasanya dimulai dari 2 (1 untuk header)
+        const rowNum = index + 2;
         let hasError = false;
         const insensitiveRow = {};
         for (const key in row) {
             insensitiveRow[key.toLowerCase()] = row[key];
         }
 
-        // Validasi field wajib
         for (const header of requiredHeaders) {
             if (insensitiveRow[header.toLowerCase()] === undefined || insensitiveRow[header.toLowerCase()] === null || insensitiveRow[header.toLowerCase()] === '') {
                 errors.push(`Baris ${rowNum}: Kolom "${header}" tidak boleh kosong.`);
                 hasError = true;
             }
         }
-        if (hasError) return; // Lanjut ke baris berikutnya jika sudah ada error
+        if (hasError) return;
 
         const productName = String(insensitiveRow.namaproduk).trim().toLowerCase();
         
-        // Cek duplikasi di dalam file
         if (productNamesInFile.has(productName)) {
             errors.push(`Baris ${rowNum}: Nama produk "${insensitiveRow.namaproduk}" duplikat di dalam file.`);
             hasError = true;
@@ -127,7 +208,6 @@ function validateImportData(jsonData) {
             productNamesInFile.add(productName);
         }
 
-        // Validasi tipe data
         const stok = Number(insensitiveRow.stok);
         const hargaBeli = Number(insensitiveRow.hargabeli);
         const hargaJual = Number(insensitiveRow.hargajual);
@@ -158,7 +238,6 @@ function validateImportData(jsonData) {
     return { validatedData, errors };
 }
 
-
 async function batchWriteToFirestore(inventoryData) {
     const db = getDb();
     const inventoryCollectionRef = getInventoryCollectionRef();
@@ -187,8 +266,6 @@ async function batchWriteToFirestore(inventoryData) {
     await batch.commit();
 }
 
-// ... Sisa file inventory-logic.js tidak ada perubahan ...
-// --- Fungsi Internal Modul ---
 function notifyInventorySubscribers(updatedInventory) {
     inventoryCache = updatedInventory;
     inventoryUpdateSubscribers.forEach(callback => callback(updatedInventory));
@@ -357,54 +434,6 @@ function filterAndRenderInventoryTable(itemsToRender, searchTerm, role) {
     updateUserInterfaceForRole(role);
 }
 
-async function handleInventoryFormSubmit(e) {
-    e.preventDefault();
-    const userId = getCurrentUserId();
-    const editItemId = document.getElementById('editItemId')?.value;
-    const itemData = {
-        name: document.getElementById('itemName').value.trim(),
-        category: document.getElementById('itemCategory').value.trim(),
-        stock: parseInt(document.getElementById('itemStock').value),
-        buyPrice: parseFloat(document.getElementById('itemBuyPrice').value),
-        sellPrice: parseFloat(document.getElementById('itemSellPrice').value),
-        arrivalDate: document.getElementById('itemArrivalDate').value,
-        expiryDate: document.getElementById('itemExpiryDate').value,
-        invoiceNumber: document.getElementById('itemInvoiceNumber').value.trim() || null,
-        distributor: document.getElementById('itemDistributor').value.trim() || null,
-    };
-    if (!itemData.name || !itemData.category || isNaN(itemData.stock) || isNaN(itemData.buyPrice) || isNaN(itemData.sellPrice) || !itemData.arrivalDate || !itemData.expiryDate) {
-        displayMessage('Semua field wajib diisi dengan benar.', 'error');
-        return;
-    }
-    showLoading(true, 'loadingIndicatorInventory');
-    const inventoryCollectionRef = getInventoryCollectionRef();
-    try {
-        if (editItemId) {
-            await updateDoc(doc(inventoryCollectionRef, editItemId), { ...itemData, lastUpdated: serverTimestamp(), updatedBy: userId });
-            displayMessage(`Produk "${itemData.name}" berhasil diupdate!`);
-        } else {
-            const q = query(inventoryCollectionRef, where("name", "==", itemData.name));
-            const querySnapshot = await getDocs(q);
-            if (!querySnapshot.empty) {
-                const existingDoc = querySnapshot.docs[0];
-                await updateDoc(doc(inventoryCollectionRef, existingDoc.id), { ...itemData, stock: (existingDoc.data().stock || 0) + itemData.stock, lastUpdated: serverTimestamp(), updatedBy: userId });
-                displayMessage(`Stok untuk "${itemData.name}" berhasil ditambahkan.`, 'success');
-            } else {
-                await addDoc(inventoryCollectionRef, { ...itemData, createdAt: serverTimestamp(), createdBy: userId, lastUpdated: serverTimestamp(), updatedBy: userId });
-                displayMessage(`Produk baru "${itemData.name}" berhasil ditambahkan!`);
-            }
-        }
-        document.getElementById('inventoryForm').reset();
-        if (document.getElementById('editItemId')) document.getElementById('editItemId').value = '';
-        document.getElementById('formTitle').textContent = 'Tambah / Update Produk Manual';
-        document.getElementById('submitButton').textContent = 'Simpan Produk';
-    } catch (error) {
-        displayMessage(`Terjadi kesalahan: ${error.message}`, 'error');
-    } finally {
-        showLoading(false, 'loadingIndicatorInventory');
-    }
-}
-
 function handleEditRequest(itemId) {
     const inventoryForm = document.getElementById('inventoryForm');
     if (inventoryForm) {
@@ -497,4 +526,3 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 });
-
