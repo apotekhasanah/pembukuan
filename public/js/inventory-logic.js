@@ -1,11 +1,12 @@
 /**
  * =================================================================
- * File: public/js/inventory-logic.js (REVISI PAGINASI & PERBAIKAN)
+ * File: public/js/inventory-logic.js (REVISI FUNGSI PENCARIAN)
  * =================================================================
  * Deskripsi: 
- * - PERBAIKAN: Mengembalikan fungsi `getInventoryCache` untuk digunakan oleh halaman kasir.
- * - Mengganti onSnapshot pada tabel utama dengan getDocs untuk memuat data per halaman.
- * - Menambahkan state dan fungsi untuk navigasi halaman (sebelumnya, berikutnya).
+ * - Memperbaiki fungsi pencarian agar lebih andal.
+ * - Pencarian sekarang mencari berdasarkan 'name' DAN 'category'.
+ * - Menggunakan Promise.all untuk menjalankan query paralel dan menggabungkan hasilnya.
+ * - Menambahkan fungsi debounce untuk efisiensi.
  */
 
 import { displayMessage, showLoading, formatRupiah, formatDate, updateUserInterfaceForRole } from './main.js';
@@ -13,41 +14,36 @@ import { getCurrentUserId, getCurrentUserRole } from './auth.js';
 import { 
     getInventoryCollectionRef, getDb, doc, getDoc, serverTimestamp, addDoc, updateDoc, deleteDoc, 
     onSnapshot, query, where, getDocs, writeBatch,
-    orderBy, limit, startAfter, endBefore, limitToLast // Impor fungsi paginasi
+    orderBy, limit, startAfter, endBefore, limitToLast
 } from './firestore_utils.js';
 
-// --- Variabel State Global untuk Paginasi & Data ---
-const INVENTORY_PAGE_SIZE = 15; // Jumlah item per halaman
-let inventoryFirstVisibleDoc = null; // Dokumen pertama di halaman saat ini
-let inventoryLastVisibleDoc = null; // Dokumen terakhir di halaman saat ini
-let inventoryCurrentPageNumber = 1; // Nomor halaman saat ini
-let isInventorySearchActive = false; // Flag untuk mode pencarian
+// --- Variabel State Global ---
+const INVENTORY_PAGE_SIZE = 15;
+let inventoryFirstVisibleDoc = null;
+let inventoryLastVisibleDoc = null;
+let inventoryCurrentPageNumber = 1;
+let isInventorySearchActive = false;
+let inventoryCacheForStatus = [];
+let inventoryUpdateSubscribers = [];
+let unsubscribeInventoryListener = null;
+let currentInventorySortKey = 'name';
+let currentInventorySortDirection = 'asc';
 
-let inventoryCacheForStatus = []; // Cache terpisah untuk tabel status (real-time)
-let inventoryUpdateSubscribers = []; // Subscriber untuk tabel status
-let unsubscribeInventoryListener = null; // Listener untuk tabel status
-
-let currentInventorySortKey = 'name'; // Kunci pengurutan default
-let currentInventorySortDirection = 'asc'; // Arah pengurutan default
+// --- Fungsi Utilitas ---
+function debounce(func, delay = 500) {
+    let timeout;
+    return function(...args) {
+        const context = this;
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(context, args), delay);
+    };
+}
 
 // --- Fungsi Publik yang Diekspor ---
-
-/**
- * =====================================================================
- * PERBAIKAN: Mengembalikan fungsi getInventoryCache agar halaman kasir berfungsi.
- * Fungsi ini sekarang mengembalikan cache yang digunakan untuk tabel status,
- * yang juga berisi semua data inventaris secara real-time.
- * =====================================================================
- */
 export function getInventoryCache() {
     return inventoryCacheForStatus;
 }
 
-
-/**
- * Berlangganan pembaruan real-time untuk tabel status (stok rendah, ED).
- * @param {Function} callback - Fungsi yang akan dipanggil dengan data inventaris lengkap.
- */
 export function subscribeToInventoryStatusUpdates(callback) {
     if (inventoryCacheForStatus.length > 0) {
         callback(inventoryCacheForStatus);
@@ -55,27 +51,17 @@ export function subscribeToInventoryStatusUpdates(callback) {
     inventoryUpdateSubscribers.push(callback);
 }
 
-/**
- * Menginisialisasi semua fitur manajemen inventaris, termasuk pemuatan halaman pertama.
- * @param {string} userRole - Peran pengguna yang sedang login.
- */
 export function initializeInventoryManagement(userRole) {
     initializeInventoryTable(userRole);
     if (userRole === 'admin' || userRole === 'superadmin') {
         initializeAdminInventoryFeatures();
     }
-    // Muat halaman pertama saat inisialisasi
     loadInventoryPage(userRole); 
-    // Tetap jalankan listener real-time untuk tabel status
     if (!unsubscribeInventoryListener) {
         listenForInventoryStatusUpdates();
     }
 }
 
-/**
- * Memuat halaman data inventaris berikutnya.
- * @param {string} userRole - Peran pengguna.
- */
 export function loadNextInventoryPage(userRole) {
     if (!inventoryLastVisibleDoc) return;
     inventoryCurrentPageNumber++;
@@ -86,10 +72,6 @@ export function loadNextInventoryPage(userRole) {
     loadInventoryPage(userRole, nextQuery);
 }
 
-/**
- * Memuat halaman data inventaris sebelumnya.
- * @param {string} userRole - Peran pengguna.
- */
 export function loadPrevInventoryPage(userRole) {
     if (!inventoryFirstVisibleDoc) return;
     inventoryCurrentPageNumber--;
@@ -100,7 +82,217 @@ export function loadPrevInventoryPage(userRole) {
     loadInventoryPage(userRole, prevQuery);
 }
 
-// ... Fungsi handleInventoryFormSubmit, handleInventoryImport, dll. (TIDAK BERUBAH) ...
+
+// --- Fungsi Inti ---
+
+async function loadInventoryPage(userRole, queryOverride = null, resetToFirstPage = false) {
+    const inventoryTableBody = document.getElementById('inventoryTableBody');
+    const colsForPlaceholder = (userRole === 'admin' || userRole === 'superadmin') ? 10 : 6;
+    if (inventoryTableBody) {
+        inventoryTableBody.innerHTML = `<tr><td colspan="${colsForPlaceholder}" class="text-center py-8 text-gray-500"><i>Memuat data halaman...</i></td></tr>`;
+    }
+    
+    if (resetToFirstPage) {
+        inventoryCurrentPageNumber = 1;
+        inventoryFirstVisibleDoc = null;
+        inventoryLastVisibleDoc = null;
+    }
+    
+    let inventoryQuery;
+    if (queryOverride) {
+        inventoryQuery = queryOverride;
+    } else {
+        inventoryQuery = query(getInventoryCollectionRef(), 
+            orderBy(currentInventorySortKey, currentInventorySortDirection), 
+            limit(INVENTORY_PAGE_SIZE));
+    }
+
+    try {
+        const documentSnapshots = await getDocs(inventoryQuery);
+        const inventoryData = documentSnapshots.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+
+        inventoryFirstVisibleDoc = documentSnapshots.docs[0];
+        inventoryLastVisibleDoc = documentSnapshots.docs[documentSnapshots.docs.length - 1];
+
+        renderInventoryTable(inventoryData, userRole);
+        updatePaginationControls(documentSnapshots.docs.length);
+
+    } catch (error) {
+        console.error("inventory-logic.js: Error di loadInventoryPage:", error);
+        displayMessage("Gagal memuat data inventaris. Cek console.", "error");
+        if (inventoryTableBody) inventoryTableBody.innerHTML = `<tr><td colspan="${colsForPlaceholder}" class="text-center py-4 text-red-500">Gagal memuat.</td></tr>`;
+    }
+}
+
+/**
+ * ======================================================================
+ * FUNGSI PENCARIAN YANG DIPERBAIKI
+ * ======================================================================
+ */
+async function handleInventorySearch(e) {
+    const searchTerm = e.target.value.trim();
+    const userRole = getCurrentUserRole();
+    const inventoryTableBody = document.getElementById('inventoryTableBody');
+    const paginationControls = document.getElementById('inventoryPaginationControls');
+    const colsForPlaceholder = (userRole === 'admin' || userRole === 'superadmin') ? 10 : 6;
+
+    if (!searchTerm) {
+        isInventorySearchActive = false;
+        if (paginationControls) paginationControls.classList.remove('hidden');
+        loadInventoryPage(userRole, null, true); // Kembali ke mode paginasi
+        return;
+    }
+
+    isInventorySearchActive = true;
+    if (paginationControls) paginationControls.classList.add('hidden');
+    if (inventoryTableBody) {
+        inventoryTableBody.innerHTML = `<tr><td colspan="${colsForPlaceholder}" class="text-center py-8 text-gray-500"><i>Mencari untuk "${searchTerm}"...</i></td></tr>`;
+    }
+
+    try {
+        const lowerCaseTerm = searchTerm.toLowerCase();
+        const capitalizedTerm = searchTerm.charAt(0).toUpperCase() + searchTerm.slice(1).toLowerCase();
+
+        // Query 1: Cari berdasarkan nama (case-insensitive-like)
+        const nameQueryLower = query(getInventoryCollectionRef(),
+            orderBy("name"),
+            where("name", ">=", lowerCaseTerm),
+            where("name", "<=", lowerCaseTerm + '\uf8ff')
+        );
+        const nameQueryCapitalized = query(getInventoryCollectionRef(),
+            orderBy("name"),
+            where("name", ">=", capitalizedTerm),
+            where("name", "<=", capitalizedTerm + '\uf8ff')
+        );
+
+        // Query 2: Cari berdasarkan kategori (case-insensitive-like)
+        const categoryQueryLower = query(getInventoryCollectionRef(),
+            orderBy("category"),
+            where("category", ">=", lowerCaseTerm),
+            where("category", "<=", lowerCaseTerm + '\uf8ff')
+        );
+        const categoryQueryCapitalized = query(getInventoryCollectionRef(),
+            orderBy("category"),
+            where("category", ">=", capitalizedTerm),
+            where("category", "<=", capitalizedTerm + '\uf8ff')
+        );
+
+        // Jalankan semua query secara paralel
+        const [
+            nameSnapLower, 
+            nameSnapCapitalized, 
+            catSnapLower, 
+            catSnapCapitalized
+        ] = await Promise.all([
+            getDocs(nameQueryLower),
+            getDocs(nameQueryCapitalized),
+            getDocs(categoryQueryLower),
+            getDocs(categoryQueryCapitalized)
+        ]);
+
+        // Gabungkan hasil dan hapus duplikat menggunakan Map
+        const resultsMap = new Map();
+        const processSnapshot = (snapshot) => {
+            snapshot.forEach(doc => {
+                if (!resultsMap.has(doc.id)) {
+                    resultsMap.set(doc.id, { id: doc.id, ...doc.data() });
+                }
+            });
+        };
+
+        processSnapshot(nameSnapLower);
+        processSnapshot(nameSnapCapitalized);
+        processSnapshot(catSnapLower);
+        processSnapshot(catSnapCapitalized);
+        
+        const finalResults = Array.from(resultsMap.values());
+        // Urutkan hasil gabungan di sisi klien
+        finalResults.sort((a, b) => a.name.localeCompare(b.name));
+
+        renderInventoryTable(finalResults, userRole);
+
+    } catch (error) {
+        console.error("Error during inventory search:", error);
+        displayMessage("Pencarian gagal. Mungkin diperlukan indeks di Firestore. Cek console.", "error");
+        if (inventoryTableBody) renderInventoryTable([], userRole);
+    }
+}
+
+function renderInventoryTable(itemsToRender, role) {
+    const inventoryTableBody = document.getElementById('inventoryTableBody');
+    if (!inventoryTableBody) return;
+    
+    const hasAdminAccess = role === 'admin' || role === 'superadmin';
+    const colsForPlaceholder = hasAdminAccess ? 10 : 6;
+    inventoryTableBody.innerHTML = '';
+
+    if (itemsToRender.length === 0) {
+        inventoryTableBody.innerHTML = `<tr><td colspan="${colsForPlaceholder}" class="text-center py-6 text-gray-500">${isInventorySearchActive ? `Produk tidak ditemukan.` : 'Belum ada produk.'}</td></tr>`;
+        return;
+    }
+
+    itemsToRender.forEach((item) => {
+        const row = inventoryTableBody.insertRow();
+        row.insertCell().textContent = item.name;
+        row.insertCell().textContent = item.category || '-';
+        row.insertCell().textContent = item.stock;
+        if (hasAdminAccess) { row.insertCell().textContent = formatRupiah(item.buyPrice); }
+        row.insertCell().textContent = formatRupiah(item.sellPrice);
+        row.insertCell().textContent = formatDate(item.arrivalDate);
+        row.insertCell().textContent = formatDate(item.expiryDate);
+        if (hasAdminAccess) {
+            row.insertCell().textContent = item.invoiceNumber || '-';
+            row.insertCell().textContent = item.distributor || '-';
+            const actionsCell = row.insertCell();
+            actionsCell.className = 'space-x-2 whitespace-nowrap';
+            const editButton = document.createElement('button');
+            editButton.textContent = 'Edit';
+            editButton.className = 'bg-yellow-500 hover:bg-yellow-600 text-white py-1 px-3 rounded-md text-sm';
+            editButton.onclick = () => populateFormForEdit(item.id, item);
+            actionsCell.appendChild(editButton);
+            const deleteButton = document.createElement('button');
+            deleteButton.textContent = 'Hapus';
+            deleteButton.className = 'bg-red-500 hover:bg-red-600 text-white py-1 px-3 rounded-md text-sm';
+            deleteButton.onclick = () => confirmDeleteItem(item.id, item.name);
+            actionsCell.appendChild(deleteButton);
+        }
+    });
+    updateUserInterfaceForRole(role);
+}
+
+// ... Sisa file (fungsi helper lainnya) tidak berubah signifikan ...
+
+function initializeInventoryTable(userRole) {
+    const searchInputInventory = document.getElementById('searchInputInventory');
+    const inventoryTableHeaders = document.querySelectorAll('#inventoryTableContainer .sortable-header');
+    
+    inventoryTableHeaders.forEach(header => {
+        header.addEventListener('click', () => {
+            if (isInventorySearchActive) {
+                displayMessage("Pengurutan dinonaktifkan saat mode pencarian aktif.", "error");
+                return;
+            }
+            const sortKey = header.dataset.sortKey;
+            if (!sortKey) return;
+            if (currentInventorySortKey === sortKey) {
+                currentInventorySortDirection = currentInventorySortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentInventorySortKey = sortKey;
+                currentInventorySortDirection = 'asc';
+            }
+            updateInventorySortIndicators(inventoryTableHeaders);
+            loadInventoryPage(userRole, null, true);
+        });
+    });
+
+    updateInventorySortIndicators(inventoryTableHeaders);
+    if (searchInputInventory) {
+        // Terapkan debounce pada event listener
+        searchInputInventory.addEventListener('input', debounce(handleInventorySearch, 500));
+    }
+}
+
+// ... Sisa kode tidak berubah ...
 async function handleInventoryFormSubmit(e) {
     e.preventDefault();
     const userId = getCurrentUserId();
@@ -202,59 +394,6 @@ export function handleInventoryImport(file, importFileInput, processButton) {
     };
     reader.readAsArrayBuffer(file);
 }
-// --- Fungsi Inti Baru untuk Paginasi ---
-
-/**
- * Fungsi utama untuk memuat dan merender satu halaman data inventaris.
- * @param {string} userRole - Peran pengguna.
- * @param {Query | null} queryOverride - Query Firestore spesifik (untuk next/prev page).
- * @param {boolean} resetToFirstPage - Apakah akan mereset ke halaman 1.
- */
-async function loadInventoryPage(userRole, queryOverride = null, resetToFirstPage = false) {
-    const inventoryTableBody = document.getElementById('inventoryTableBody');
-    const colsForPlaceholder = (userRole === 'admin' || userRole === 'superadmin') ? 10 : 6;
-    if (inventoryTableBody) {
-        inventoryTableBody.innerHTML = `<tr><td colspan="${colsForPlaceholder}" class="text-center py-8 text-gray-500"><i>Memuat data halaman...</i></td></tr>`;
-    }
-    
-    if (resetToFirstPage) {
-        inventoryCurrentPageNumber = 1;
-        inventoryFirstVisibleDoc = null;
-        inventoryLastVisibleDoc = null;
-    }
-    
-    let inventoryQuery;
-    if (queryOverride) {
-        inventoryQuery = queryOverride;
-    } else {
-        // Query default untuk halaman pertama
-        inventoryQuery = query(getInventoryCollectionRef(), 
-            orderBy(currentInventorySortKey, currentInventorySortDirection), 
-            limit(INVENTORY_PAGE_SIZE));
-    }
-
-    try {
-        const documentSnapshots = await getDocs(inventoryQuery);
-        const inventoryData = documentSnapshots.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
-
-        // Update state paginasi
-        inventoryFirstVisibleDoc = documentSnapshots.docs[0];
-        inventoryLastVisibleDoc = documentSnapshots.docs[documentSnapshots.docs.length - 1];
-
-        renderInventoryTable(inventoryData, userRole);
-        updatePaginationControls(documentSnapshots.docs.length);
-
-    } catch (error) {
-        console.error("inventory-logic.js: Error di loadInventoryPage:", error);
-        displayMessage("Gagal memuat data inventaris. Cek console.", "error");
-        if (inventoryTableBody) inventoryTableBody.innerHTML = `<tr><td colspan="${colsForPlaceholder}" class="text-center py-4 text-red-500">Gagal memuat.</td></tr>`;
-    }
-}
-
-/**
- * Memperbarui status tombol dan teks info paginasi.
- * @param {number} fetchedDocsCount - Jumlah dokumen yang baru saja diambil.
- */
 function updatePaginationControls(fetchedDocsCount) {
     const prevBtn = document.getElementById('inventoryPrevPageButton');
     const nextBtn = document.getElementById('inventoryNextPageButton');
@@ -264,135 +403,17 @@ function updatePaginationControls(fetchedDocsCount) {
     if (nextBtn) nextBtn.disabled = fetchedDocsCount < INVENTORY_PAGE_SIZE;
     if (pageInfo) pageInfo.textContent = `Halaman ${inventoryCurrentPageNumber}`;
 }
-
-
-// --- Fungsi Lainnya (Direvisi atau Disesuaikan) ---
-
-/**
- * Menjalankan listener onSnapshot untuk memperbarui data status secara real-time.
- */
 function listenForInventoryStatusUpdates() {
     if (unsubscribeInventoryListener) unsubscribeInventoryListener();
     
     const q = query(getInventoryCollectionRef());
     unsubscribeInventoryListener = onSnapshot(q, (querySnapshot) => {
         inventoryCacheForStatus = querySnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
-        // Notifikasi subscriber (yaitu, halaman inventaris) untuk memperbarui tabel status
         inventoryUpdateSubscribers.forEach(callback => callback(inventoryCacheForStatus));
     }, (error) => {
         console.error("inventory-logic.js: Error di onSnapshot (status):", error);
     });
 }
-
-/**
- * Merender data ke dalam tabel inventaris utama.
- * @param {Array} itemsToRender - Array data produk untuk ditampilkan.
- * @param {string} role - Peran pengguna.
- */
-function renderInventoryTable(itemsToRender, role) {
-    const inventoryTableBody = document.getElementById('inventoryTableBody');
-    if (!inventoryTableBody) return;
-    
-    const hasAdminAccess = role === 'admin' || role === 'superadmin';
-    const colsForPlaceholder = hasAdminAccess ? 10 : 6;
-    inventoryTableBody.innerHTML = '';
-
-    if (itemsToRender.length === 0) {
-        inventoryTableBody.innerHTML = `<tr><td colspan="${colsForPlaceholder}" class="text-center py-6 text-gray-500">${isInventorySearchActive ? `Produk tidak ditemukan.` : 'Belum ada produk.'}</td></tr>`;
-        return;
-    }
-
-    itemsToRender.forEach((item) => {
-        const row = inventoryTableBody.insertRow();
-        row.insertCell().textContent = item.name;
-        row.insertCell().textContent = item.category || '-';
-        row.insertCell().textContent = item.stock;
-        if (hasAdminAccess) { row.insertCell().textContent = formatRupiah(item.buyPrice); }
-        row.insertCell().textContent = formatRupiah(item.sellPrice);
-        row.insertCell().textContent = formatDate(item.arrivalDate);
-        row.insertCell().textContent = formatDate(item.expiryDate);
-        if (hasAdminAccess) {
-            row.insertCell().textContent = item.invoiceNumber || '-';
-            row.insertCell().textContent = item.distributor || '-';
-            const actionsCell = row.insertCell();
-            actionsCell.className = 'space-x-2 whitespace-nowrap';
-            const editButton = document.createElement('button');
-            editButton.textContent = 'Edit';
-            editButton.className = 'bg-yellow-500 hover:bg-yellow-600 text-white py-1 px-3 rounded-md text-sm';
-            editButton.onclick = () => populateFormForEdit(item.id, item);
-            actionsCell.appendChild(editButton);
-            const deleteButton = document.createElement('button');
-            deleteButton.textContent = 'Hapus';
-            deleteButton.className = 'bg-red-500 hover:bg-red-600 text-white py-1 px-3 rounded-md text-sm';
-            deleteButton.onclick = () => confirmDeleteItem(item.id, item.name);
-            actionsCell.appendChild(deleteButton);
-        }
-    });
-    updateUserInterfaceForRole(role);
-}
-
-/**
- * Menangani logika pencarian inventaris.
- * @param {Event} e - Event input dari kotak pencarian.
- */
-async function handleInventorySearch(e) {
-    const searchTerm = e.target.value.toLowerCase();
-    const userRole = getCurrentUserRole();
-    const paginationControls = document.getElementById('inventoryPaginationControls');
-
-    if (!searchTerm) {
-        isInventorySearchActive = false;
-        if (paginationControls) paginationControls.classList.remove('hidden');
-        loadInventoryPage(userRole, null, true); // Kembali ke halaman 1
-        return;
-    }
-
-    isInventorySearchActive = true;
-    if (paginationControls) paginationControls.classList.add('hidden');
-    
-    // Firestore tidak mendukung pencarian substring. Cara paling sederhana adalah 'starts-with'.
-    const searchQuery = query(getInventoryCollectionRef(),
-        orderBy("name"),
-        where("name", ">=", searchTerm),
-        where("name", "<=", searchTerm + '\uf8ff')
-    );
-
-    try {
-        const querySnapshot = await getDocs(searchQuery);
-        const searchResults = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        renderInventoryTable(searchResults, userRole);
-    } catch (error) {
-        console.error("Error during inventory search:", error);
-        displayMessage("Pencarian gagal. Cek console.", "error");
-    }
-}
-
-
-function initializeInventoryTable(userRole) {
-    const searchInputInventory = document.getElementById('searchInputInventory');
-    const inventoryTableHeaders = document.querySelectorAll('#inventoryTableContainer .sortable-header');
-    
-    inventoryTableHeaders.forEach(header => {
-        header.addEventListener('click', () => {
-            const sortKey = header.dataset.sortKey;
-            if (!sortKey) return;
-            if (currentInventorySortKey === sortKey) {
-                currentInventorySortDirection = currentInventorySortDirection === 'asc' ? 'desc' : 'asc';
-            } else {
-                currentInventorySortKey = sortKey;
-                currentInventorySortDirection = 'asc';
-            }
-            updateInventorySortIndicators(inventoryTableHeaders);
-            loadInventoryPage(userRole, null, true); // Reload ke halaman 1 dengan urutan baru
-        });
-    });
-
-    updateInventorySortIndicators(inventoryTableHeaders);
-    if (searchInputInventory) {
-        searchInputInventory.addEventListener('input', handleInventorySearch);
-    }
-}
-
 function initializeAdminInventoryFeatures() {
     const inventoryForm = document.getElementById('inventoryForm');
     const clearInventoryFormButton = document.getElementById('clearInventoryFormButton');
@@ -408,8 +429,6 @@ function initializeAdminInventoryFeatures() {
         });
     }
 }
-
-// ... Fungsi utilitas lainnya seperti sort indicators, populate form, delete, dll. (TIDAK BERUBAH) ...
 function updateInventorySortIndicators(headers) {
     if (!headers) return;
     headers.forEach(header => {
@@ -442,7 +461,7 @@ function populateFormForEdit(id, item) {
 }
 function confirmDeleteItem(id, itemName) {
     const role = getCurrentUserRole();
-    if (role !== 'admin' || role !== 'superadmin') return;
+    if (role !== 'admin' && role !== 'superadmin') return;
     const modal = document.getElementById('confirmationModal');
     const confirmBtn = document.getElementById('confirmDeleteButton');
     const cancelBtn = document.getElementById('cancelDeleteButton');
@@ -474,7 +493,6 @@ async function performDelete(itemId, itemName) {
         showLoading(false, 'loadingIndicatorInventory');
     }
 }
-//...
 function validateImportData(jsonData) {
     const validatedData = [];
     const errors = [];
