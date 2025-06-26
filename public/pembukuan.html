@@ -1,6 +1,6 @@
 <!-- 
 =============================================================================
-File: public/pembukuan.html (Revisi dengan Form Pendapatan & UI Baru)
+File: public/pembukuan.html (Revisi dengan Fitur Superadmin)
 =============================================================================
 -->
 <!DOCTYPE html>
@@ -23,16 +23,11 @@ File: public/pembukuan.html (Revisi dengan Form Pendapatan & UI Baru)
     <!-- Halaman Pemuatan Awal -->
     <div id="loadingOverlay" class="fixed inset-0 bg-white bg-opacity-95 flex flex-col items-center justify-center z-[9999]">
         <div class="spinner"></div>
-        <!-- Pesan loading bisa disesuaikan per halaman jika perlu -->
         <p class="mt-4 text-lg font-semibold text-green-700">Memuat Halaman...</p>
         <p class="text-sm text-gray-600">Mohon tunggu sebentar.</p>
     </div>
 
-    <!-- === PERUBAHAN DI SINI: Placeholder untuk Navigasi Dinamis === -->
-    <div id="navbar-placeholder">
-        <!-- Navigasi akan dimuat di sini oleh main.js -->
-    </div>
-    <!-- === AKHIR PERUBAHAN === -->
+    <div id="navbar-placeholder"></div>
 
     <div id="mainContent" class="container mx-auto p-4 md:p-8 hidden"> 
         <header class="mb-8 text-center">
@@ -56,6 +51,10 @@ File: public/pembukuan.html (Revisi dengan Form Pendapatan & UI Baru)
                 </button>
                 <button data-tab-target="utangPiutang" class="tab-button whitespace-nowrap py-4 px-2 md:px-4 border-b-2 font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300 border-transparent">
                     Utang & Piutang
+                </button>
+                <!-- Tombol Tab Baru untuk Superadmin -->
+                <button data-tab-target="superadminCrud" class="tab-button whitespace-nowrap py-4 px-2 md:px-4 border-b-2 font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300 border-transparent superadmin-only-nav" style="display: none;">
+                    Kelola Transaksi
                 </button>
             </nav>
         </div>
@@ -102,12 +101,10 @@ File: public/pembukuan.html (Revisi dengan Form Pendapatan & UI Baru)
                                 <span class="font-medium text-gray-800">Laba Kotor</span>
                                 <span id="lrLabaKotor" class="font-bold text-gray-800">Rp 0</span>
                             </div>
-                            <!-- === PERUBAHAN DI SINI === -->
                             <div class="flex justify-between items-center text-base">
                                 <span class="ml-4 text-gray-500">(+) Pendapatan Lain-lain</span>
                                 <span id="lrPendapatanLain" class="text-green-500">Rp 0</span>
                             </div>
-                            <!-- === AKHIR PERUBAHAN === -->
                              <div class="mt-4 pt-2">
                                 <p class="font-medium text-gray-600">(-) Biaya Operasional</p>
                                 <div id="lrDetailBiaya" class="ml-4 mt-2 space-y-1 text-sm text-gray-500"></div>
@@ -228,10 +225,8 @@ File: public/pembukuan.html (Revisi dengan Form Pendapatan & UI Baru)
                 </div>
             </div>
 
-            <!-- === PERUBAHAN DI SINI: SELURUH BLOK TAB INI DIROMBAK === -->
             <!-- Pencatatan Tab -->
             <div id="pencatatan" class="tab-content hidden">
-                 <!-- Grid untuk Form Pendapatan & Biaya -->
                  <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
                     <!-- Form Pendapatan Lain-lain -->
                     <div class="bg-white p-6 rounded-lg shadow-lg">
@@ -281,7 +276,7 @@ File: public/pembukuan.html (Revisi dengan Form Pendapatan & UI Baru)
                                 <label for="expenseCategory" class="block text-sm font-medium text-gray-700">Kategori Biaya</label>
                                  <select id="expenseCategory" required class="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-red-500 focus:border-red-500">
                                     <option value="Belanja">Belanja Modal</option>
-                                    <option value="Gaji & Upah">Gaji & Upah</option> <!-- KATEGORI BARU -->
+                                    <option value="Gaji & Upah">Gaji & Upah</option>
                                     <option value="Sewa Tempat">Sewa Tempat</option>
                                     <option value="Listrik, Air, Internet">Listrik, Air, Internet</option>
                                     <option value="Pemasaran">Pemasaran</option>
@@ -339,7 +334,32 @@ File: public/pembukuan.html (Revisi dengan Form Pendapatan & UI Baru)
                      </form>
                  </div>
             </div>
-            <!-- === AKHIR PERUBAHAN === -->
+
+            <!-- ======================================================== -->
+            <!-- PENAMBAHAN: Tab CRUD Superadmin -->
+            <!-- ======================================================== -->
+            <div id="superadminCrud" class="tab-content hidden">
+                <div class="bg-white p-6 rounded-lg shadow-lg">
+                    <h2 class="text-xl font-semibold mb-4 text-purple-700">Kelola Semua Transaksi Keuangan</h2>
+                    <div class="table-container border border-gray-200 rounded-md">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-100">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tanggal</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Jenis</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Deskripsi</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Jumlah</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="superadminCrudTableBody" class="bg-white divide-y divide-gray-200">
+                                <!-- Data akan diisi oleh JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </div>
     <div id="accessDeniedMessage" class="container mx-auto p-4 md:p-8 text-center hidden">
@@ -363,6 +383,54 @@ File: public/pembukuan.html (Revisi dengan Form Pendapatan & UI Baru)
             </div>
         </div>
     </div>
+
+    <!-- ======================================================== -->
+    <!-- PENAMBAHAN: Modal untuk Edit Transaksi (Superadmin) -->
+    <!-- ======================================================== -->
+    <div id="editTransactionModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center hidden z-50">
+        <div class="bg-white p-8 rounded-lg shadow-xl w-full max-w-lg mx-auto">
+            <h3 class="text-2xl font-bold text-gray-800 mb-6">Edit Transaksi</h3>
+            <form id="editTransactionForm" class="space-y-4">
+                <input type="hidden" id="editTransactionId">
+                <input type="hidden" id="editTransactionType">
+                <div>
+                    <label for="editTransactionDate" class="block text-sm font-medium text-gray-700">Tanggal</label>
+                    <input type="date" id="editTransactionDate" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500">
+                </div>
+                <div>
+                    <label for="editTransactionDescription" class="block text-sm font-medium text-gray-700">Deskripsi</label>
+                    <input type="text" id="editTransactionDescription" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500">
+                </div>
+                 <div id="editCategoryContainer" class="hidden">
+                    <label for="editTransactionCategory" class="block text-sm font-medium text-gray-700">Kategori Biaya</label>
+                    <select id="editTransactionCategory" class="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                        <option value="Belanja">Belanja Modal</option>
+                        <option value="Gaji & Upah">Gaji & Upah</option>
+                        <option value="Sewa Tempat">Sewa Tempat</option>
+                        <option value="Listrik, Air, Internet">Listrik, Air, Internet</option>
+                        <option value="Pemasaran">Pemasaran</option>
+                        <option value="Transportasi">Transportasi</option>
+                        <option value="Perlengkapan">Perlengkapan</option>
+                        <option value="Pajak">Pajak</option>
+                        <option value="Lain-lain">Lain-lain</option>
+                    </select>
+                </div>
+                 <div id="editPartyNameContainer" class="hidden">
+                    <label for="editTransactionPartyName" class="block text-sm font-medium text-gray-700">Nama Pihak</label>
+                    <input type="text" id="editTransactionPartyName" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                </div>
+                <div>
+                    <label for="editTransactionAmount" class="block text-sm font-medium text-gray-700">Jumlah (Rp)</label>
+                    <input type="number" id="editTransactionAmount" required min="0" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500">
+                </div>
+                <div class="flex items-center justify-end space-x-4 pt-4">
+                    <button type="button" id="cancelEditTransactionButton" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-md shadow-md">Batal</button>
+                    <button type="submit" class="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-6 rounded-md shadow-md">Simpan Perubahan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
 
     <script type="module" src="js/main.js"></script>
     <script type="module" src="js/auth.js"></script>
